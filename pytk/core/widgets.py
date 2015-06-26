@@ -13,7 +13,6 @@ class ImageButton(QtGui.QPushButton):
 
     def clear(self):
         icon = QtGui.QIcon()
-        #icon.addPixmap(QtGui.QPixmap(":/logo/icons/CyberLogo.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.setIcon(icon)
 
 

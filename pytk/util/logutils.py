@@ -1,19 +1,6 @@
 
 #-*- coding:Utf-8 -*-
 
-#    __PYDOC__
-#    [TITLE]
-#    fncLog.py
-#
-#    [DESCRIPTION]
-#    Core of General Tools Functions
-#
-#    [CREATION INFO]
-#    Author: Stephane Hoarau & Sebastien Courtois
-#    Company: CGS
-#
-#    __END__
-
 #from __future__ import print_function
 import sys
 from .sysutils import toStr

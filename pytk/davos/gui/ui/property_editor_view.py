@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'C:\Users\sebcourtois\devspace\cg-pypeline-toolkit\resources\davos\property_editor_view.ui'
+# Form implementation generated from reading ui file 'C:\Users\sebcourtois\git\cg-pypeline-toolkit\resources\davos\property_editor_view.ui'
 #
-# Created: Tue Jun 23 13:24:42 2015
+# Created: Fri Jun 26 15:37:12 2015
 #      by: pyside-uic 0.2.14 running on PySide 1.2.0
 #
 # WARNING! All changes made in this file will be lost!
@@ -52,9 +52,6 @@ class Ui_PropertyEditorView(object):
         self.imageButton.setMaximumSize(QtCore.QSize(256, 256))
         self.imageButton.setStyleSheet("")
         self.imageButton.setText("")
-        icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap(":/logo/icons/CyberLogo.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
-        self.imageButton.setIcon(icon)
         self.imageButton.setIconSize(QtCore.QSize(256, 256))
         self.imageButton.setCheckable(False)
         self.imageButton.setAutoDefault(False)

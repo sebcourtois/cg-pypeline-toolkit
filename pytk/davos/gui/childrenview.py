@@ -106,7 +106,7 @@ class ChildrenView(BaseTreeView):
         headerView.setResizeMode(model.imageSection, QtGui.QHeaderView.Fixed)
 
 #        # hiding unwanted column
-#        sPropertyList = CgsItem.childrenViewProperties
+#        sPropertyList = Item.childrenViewProperties
 #        for i, sProperty in enumerate(model.propertyList):
 #                self.setColumnHidden(i, sProperty not in sPropertyList)
 

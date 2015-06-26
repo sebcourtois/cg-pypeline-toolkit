@@ -113,7 +113,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
     if sEncryptExtList:
         raise NotImplementedError, "Sorry, feature has been removed."
-        #from cgs_modules.util import cryptUtil
+        #import cryptUtil
         sEncryptExtList = list(e.strip(".") for e in sEncryptExtList)
 
     sSrcRootDir = addTrailingSlash(normPath(in_sSrcRootDir))
@@ -203,7 +203,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
                 bCopied = True
                 if sExt in sEncryptExtList:
-                    pass#bCopied = cryptUtil.cgsEncryptFile(sFilePath, sDestPath, **kwargs)
+                    pass#bCopied = cryptUtil.encryptFile(sFilePath, sDestPath, **kwargs)
                 else:
                     sDestPath, bCopied = copyFile(sFilePath, sDestPath, **kwargs)
 
@@ -221,7 +221,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
                 bCopied = True
                 if sExt in sEncryptExtList:
-                    pass#bCopied = cryptUtil.cgsEncryptFile(sFilePath, sDestPath, **kwargs)
+                    pass#bCopied = cryptUtil.encryptFile(sFilePath, sDestPath, **kwargs)
                 else:
                     _, bCopied = copyFile(sFilePath, sDestPath, **kwargs)
 

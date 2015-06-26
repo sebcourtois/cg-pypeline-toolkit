@@ -115,10 +115,6 @@
         <property name="text">
          <string/>
         </property>
-        <property name="icon">
-         <iconset>
-          <normaloff>:/logo/icons/CyberLogo.png</normaloff>:/logo/icons/CyberLogo.png</iconset>
-        </property>
         <property name="iconSize">
          <size>
           <width>256</width>
