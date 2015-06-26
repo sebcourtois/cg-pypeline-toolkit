@@ -39,8 +39,8 @@ class PropertyItem(QtGui.QStandardItem):
         self.setData(getattr(self.__metaobj.__class__, "classUiPriority", 0), ItemUserRole.SortGroupRole)
 
         if metaprpty.getParam("uiDecorated", False):
-            #icon = self.model().iconProvider().icon(toUnicode(self.__metaobj._pathobj))
-            icon = self.model().iconProvider().icon(QtGui.QFileIconProvider.Folder)
+            icon = self.model().iconProvider().icon(toUnicode(self.__metaobj._pathobj))
+            #icon = self.model().iconProvider().icon(QtGui.QFileIconProvider.Folder)
             self.setIcon(icon)
 
         self.loadFlags(metaprpty)
