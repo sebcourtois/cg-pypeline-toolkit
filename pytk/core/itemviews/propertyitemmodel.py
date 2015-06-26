@@ -12,6 +12,14 @@ from .utils import ItemUserFlag
 from .utils import ItemUserRole
 from .utils import toDisplayText
 
+class PropertyIconProvider(object):
+
+    def __init__(self):
+        pass
+
+    def icon(self, metaprpty):
+        return QtGui.QIcon()
+
 class PropertyItem(QtGui.QStandardItem):
 
     def __init__(self, metaprpty=None):
@@ -23,8 +31,6 @@ class PropertyItem(QtGui.QStandardItem):
         if metaprpty:
             self.__metaobj = metaprpty._metaobj
 
-        self.setFlags(Qt.ItemFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable))
-
     def type(self):
         return QtGui.QStandardItem.UserType + 1
 
@@ -35,19 +41,21 @@ class PropertyItem(QtGui.QStandardItem):
 
         self.__metaobj = metaprpty._metaobj
 
+        self.loadFlags(metaprpty)
+
         self.setData(toDisplayText(metaprpty.getattr_()), Qt.DisplayRole)
         self.setData(getattr(self.__metaobj.__class__, "classUiPriority", 0), ItemUserRole.SortGroupRole)
 
         if metaprpty.getParam("uiDecorated", False):
-            icon = self.model().iconProvider().icon(toUnicode(self.__metaobj._pathobj))
-            #icon = self.model().iconProvider().icon(QtGui.QFileIconProvider.Folder)
-            self.setIcon(icon)
-
-        self.loadFlags(metaprpty)
+            provider = self.model().iconProvider()
+            if provider:
+                icon = provider.icon(metaprpty)
+                self.setData(icon, Qt.DecorationRole)
 
     def loadFlags(self, metaprpty):
 
-        itemFlags = self.flags()
+        itemFlags = Qt.ItemFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+
         editableState = metaprpty.getParam("uiEditable", Eds.Disabled)
         if editableState:
             ##Allow edition of the column
@@ -81,6 +89,9 @@ class PropertyItem(QtGui.QStandardItem):
         return sRepr
 
 class PropertyItemModel(QtGui.QStandardItemModel):
+
+    standardItemClass = PropertyItem
+    iconProviderClass = PropertyIconProvider
 
     def __init__(self, metamodel, parent=None):
         super(PropertyItemModel, self).__init__(parent)
@@ -200,9 +211,11 @@ class PropertyItemModel(QtGui.QStandardItemModel):
 
     def iterRowItems(self, metaobj):
 
+        cls = self.__class__.standardItemClass
+
         for sProperty in self.propertyNames:
             metaProperty = metaobj.metaProperty(sProperty)
-            yield PropertyItem(metaProperty)
+            yield cls(metaProperty)
 
     def hasChildren(self, parentIndex):
 
@@ -241,10 +254,10 @@ class PropertyItemModel(QtGui.QStandardItemModel):
     def setIconProvider(self, provider):
         self.__iconProvider = provider
 
-    def iconProvider(self):
+    def iconProvider(self, *args):
 
         if not self.__iconProvider:
-            self.__iconProvider = QtGui.QFileIconProvider()
+            self.__iconProvider = self.__class__.iconProviderClass(*args)
 
         return self.__iconProvider
 

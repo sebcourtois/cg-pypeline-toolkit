@@ -6,10 +6,29 @@ Qt = QtCore.Qt
 from pytk.core.itemviews.baseproxymodel import BaseProxyModel
 from pytk.core.itemviews.basetreeview import BaseTreeView
 from pytk.core.itemviews.basetreewidget import BaseTreeWidget
+from pytk.core.itemviews.propertyitemmodel import PropertyItemModel
+from pytk.core.itemviews.propertyitemmodel import PropertyIconProvider
 
 from pytk.util.logutils import logMsg
 
 from .childrenwidget import ChildrenWidget
+
+
+class FileIconProvider(PropertyIconProvider):
+
+    def __init__(self):
+        super(FileIconProvider, self).__init__()
+        self.__qprovider = QtGui.QFileIconProvider()
+
+    def icon(self, metaprpty):
+        fileInfo = metaprpty._metaobj._qfileinfo
+        if fileInfo.isDir():
+            return self.__qprovider.icon(QtGui.QFileIconProvider.Folder)
+        return self.__qprovider.icon(fileInfo)
+
+class DrcEntryModel(PropertyItemModel):
+
+    iconProviderClass = FileIconProvider
 
 class BrowserProxyModel(BaseProxyModel):
 
@@ -28,8 +47,9 @@ class BrowserProxyModel(BaseProxyModel):
 
 class BrowserTreeWidget(BaseTreeWidget):
 
-    treeViewClass = BaseTreeView
+    itemModelClass = DrcEntryModel
     proxyModelClass = BrowserProxyModel
+    treeViewClass = BaseTreeView
 #    contextMenuClass = ContextMenu
 
     def __init__(self, parent=None, childrenViewEnabled=True):

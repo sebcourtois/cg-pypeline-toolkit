@@ -1,7 +1,5 @@
 
 
-from datetime import datetime
-
 from pytk.util.sysutils import MemSize
 
 from pytk.core.metaproperty import BasePropertyFactory
@@ -12,9 +10,9 @@ from pytk.core.metaobject import MetaObject
 DrcEntryProperties = (
 ('name',
     {
-    'type': 'drc_path',
+    'type': 'drc_info',
     'isMulti':False,
-    'storable':False,
+    'storable':"fileName",
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiCategory':'01_General',
@@ -25,7 +23,7 @@ DrcEntryProperties = (
     {
     'type': 'drc_time',
     'isMulti':False,
-    'storable':'st_mtime',
+    'storable':'lastModified',
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Modif. Date',
@@ -36,7 +34,7 @@ DrcEntryProperties = (
     {
     'type': 'drc_time',
     'isMulti':False,
-    'storable':'st_ctime' ,
+    'storable':'created' ,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Creation Date',
@@ -48,7 +46,7 @@ DrcEntryProperties = (
 DrcFileProperties = [
 ('suffix',
     {
-    'type': 'drc_path',
+    'type': 'drc_info',
     'isMulti':False,
     'default':'',
     'storable':False,
@@ -62,7 +60,7 @@ DrcFileProperties = [
     {
     'type': 'drc_size',
     'isMulti':False,
-    'storable':'st_size',
+    'storable':'size',
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Size',
@@ -72,36 +70,24 @@ DrcFileProperties = [
 ]
 DrcFileProperties.extend(DrcEntryProperties)
 
-class PathProperty(MetaProperty):
+class FileInfoProperty(MetaProperty):
 
     def read(self):
-        return getattr(self._metaobj._pathobj, self.storageName)
+        value = getattr(self._metaobj._qfileinfo, self.storageName)
+        return value() if callable(value) else value
 
     def write(self, value):
         return True
 
-class StatProperty(MetaProperty):
+class FileTimeProperty(FileInfoProperty):
 
     def read(self):
+        return FileInfoProperty.read(self).toPython()
 
-        statobj = self._metaobj._cached_stat
-        if statobj is None:
-            statobj = self._metaobj._pathobj.stat()
-
-        return getattr(statobj, self.storageName)
-
-    def write(self, value):
-        return True
-
-class StatTimeProperty(StatProperty):
+class FileSizeProperty(FileInfoProperty):
 
     def read(self):
-        return datetime.fromtimestamp(StatProperty.read(self))
-
-class StatSizeProperty(StatProperty):
-
-    def read(self):
-        return MemSize(StatProperty.read(self))
+        return MemSize(FileInfoProperty.read(self))
 
     def displayText(self):
         return "{0:.0cM}".format(self.getattr_())
@@ -109,10 +95,9 @@ class StatSizeProperty(StatProperty):
 class PropertyFactory(BasePropertyFactory):
 
     propertyTypeDct = {
-    'drc_path' : PathProperty,
-    'drc_stat' : StatProperty,
-    'drc_time' : StatTimeProperty,
-    'drc_size' : StatSizeProperty,
+    'drc_info' : FileInfoProperty,
+    'drc_time' : FileTimeProperty,
+    'drc_size' : FileSizeProperty,
     }
 
 

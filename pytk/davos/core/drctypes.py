@@ -1,8 +1,11 @@
+
+from PySide.QtCore import QDir
+
 from pytk.util.logutils import logMsg
 from pytk.util.sysutils import listClassesFromModule
-from pytk.util.fsutils import isDirStat, isFileStat
+#from pytk.util.fsutils import isDirStat, isFileStat
+from pytk.util.qtutils import toQFileInfo
 
-from .utils import toPath
 from .properties import DrcMetaObject
 from .properties import DrcEntryProperties, DrcFileProperties
 
@@ -22,13 +25,11 @@ class DrcRepository(object):
 
     def entry(self, drcPath):
 
-        drcPath = toPath(drcPath)
-        try:
-            drcStat = drcPath.stat()
-        except OSError:
-            drcStat = None
+        drcPath = toQFileInfo(drcPath)
 
-        drcEntry = self.loadedEntriesCache.get(drcPath)
+        drcStat = None
+
+        drcEntry = self.loadedEntriesCache.get(drcPath.absoluteFilePath())
         if drcEntry:
             drcEntry.loadData(drcPath, drcStat)
             return drcEntry
@@ -47,12 +48,12 @@ class DrcEntry(DrcMetaObject):
 
     def __new__(cls, drcLibrary, drcPath=None, drcStat=None):
 
-        drcPath = toPath(drcPath)
+        drcPath = toQFileInfo(drcPath)
 
-        if (cls is DrcEntry) and (drcStat is not None):
-            if isDirStat(drcStat):
+        if (cls is DrcEntry):
+            if drcPath.isDir():
                 cls = DrcDir
-            elif isFileStat(drcStat):
+            elif drcPath.isFile():
                 cls = DrcFile
 
         return super(DrcEntry, cls).__new__(cls)
@@ -63,41 +64,38 @@ class DrcEntry(DrcMetaObject):
         self._cached_stat = None
         super(DrcEntry, self).__init__()
 
-        drcPath = toPath(drcPath)
+        drcPath = toQFileInfo(drcPath)
         if drcPath:
             self.loadData(drcPath, drcStat)
 
     def loadData(self, drcPath, drcStat=None):
 
-        self._pathobj = toPath(drcPath)
+        self._qfileinfo = toQFileInfo(drcPath)
+        self._qdir = QDir(self._qfileinfo.absoluteFilePath())
+        self._qdir.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot | QDir.AllDirs)
 
-        try:
-            self._cached_stat = drcStat if drcStat else self._pathobj.stat()
-            DrcMetaObject.loadData(self)
-        finally:
-            self._cached_stat = None
+        self._qfileinfo.setCaching(True)
+        DrcMetaObject.loadData(self)
+        self._qfileinfo.setCaching(False)
 
         self.__remember()
 
     def pathname(self):
-        return str(self._pathobj)
+        return self._qfileinfo.absoluteFilePath()
 
     def exists(self):
-        return self._pathobj.exists()
-
-    def stat(self):
-        return self._cached_stat if self._cached_stat else self._pathobj.stat()
+        return self._qfileinfo.exists()
 
     def iterChildren(self):
         entry = self.library.entry
-        return (entry(child) for child in self._pathobj.iterdir())
+        return (entry(child) for child in self._qdir.entryInfoList())
 
     def hasChildren(self):
         return False
 
     def __remember(self):
 
-        key = self._pathobj
+        key = self.pathname()
         loadedEntriesCache = self.library.loadedEntriesCache
 
         if key in loadedEntriesCache:

@@ -12,7 +12,7 @@ from .baseselectionmodel import BaseSelectionModel
 class BaseTreeWidget(QtGui.QWidget):
 
     treeViewClass = BaseTreeView
-    treeModelClass = PropertyItemModel
+    itemModelClass = PropertyItemModel
     selectModelClass = BaseSelectionModel
     proxyModelClass = BaseProxyModel
     contextMenuClass = BaseContextMenu
@@ -80,7 +80,7 @@ class BaseTreeWidget(QtGui.QWidget):
 #        bModelTest = kwargs.pop("testModel", False)
         bProxyModel = kwargs.pop("useProxyModel", True)
 
-        model = self.__class__.treeModelClass(metamodel, self)
+        model = self.__class__.itemModelClass(metamodel, self)
 
         if bProxyModel:
 

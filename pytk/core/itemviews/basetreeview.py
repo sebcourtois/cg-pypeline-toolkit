@@ -13,7 +13,7 @@ class BaseTreeView(QtGui.QTreeView):
 
     itemDelegateClass = QtGui.QStyledItemDelegate
     proxyModelClass = BaseProxyModel
-    treeModelClass = PropertyItemModel
+    itemModelClass = PropertyItemModel
 
     def __init__(self, parent=None, **kwargs):
         super(BaseTreeView, self).__init__(parent)
@@ -52,7 +52,7 @@ class BaseTreeView(QtGui.QTreeView):
 #        bModelTest = kwargs.pop("testModel", False)
         bProxyModel = kwargs.pop("useProxyModel", True)
 
-        model = self.__class__.treeModelClass(metamodel, self)
+        model = self.__class__.itemModelClass(metamodel, self)
 
         if bProxyModel:
 

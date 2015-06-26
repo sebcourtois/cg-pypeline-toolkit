@@ -57,6 +57,13 @@ def toColorSheet(qColor, default=None):
 
     return "{0}({1},{2},{3},{4})".format(*values)
 
+def toQFileInfo(p):
+
+    if not p or isinstance(p, QtCore.QFileInfo):
+        return p
+    else:
+        return QtCore.QFileInfo(p)
+
 def setWaitCursor(func):
 
     def doIt(*args, **kwargs):
