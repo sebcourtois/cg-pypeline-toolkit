@@ -1,4 +1,4 @@
-
+from functools import partial
 from pytk.util.sysutils import copyOf
 
 class EditState:
@@ -18,14 +18,48 @@ class MetaProperty(object):
 
         self.defaultValue = [] if self.__isMulti else copyOf(propertyDct.get("default", "undefined"))
 
-        storableValue = propertyDct.get("storable", True)
-        self.storageName = storableValue if storableValue and isinstance(storableValue, basestring) else sProperty
-        self.__storable = bool(storableValue)
+        self.__accessor = None
+
+        sReader = propertyDct.get("read", sProperty)
+        self.__readable = True if sReader else False
+        self.__reader = sReader
+
+        sWriter = propertyDct.get("write", "")
+        self.__writable = True if sWriter else False
+        self.__writer = sWriter
+
+        self.__storable = propertyDct.get("storable", True)
 
         self._metaobj = metaobj
 
+        self.accessored = False
+
         self.name = sProperty
         self.propertyDct = propertyDct
+
+    def initAccessors(self):
+
+        if self.accessored:
+            return
+
+        self.accessored = True
+
+        self.__accessor = getattr(self._metaobj, self.propertyDct["accessor"])
+
+        if self.isReadable():
+            sReader = self.__reader
+            if sReader.endswith("()"):
+                self.__reader = getattr(self.__accessor, sReader.rstrip("()"))
+            else:
+                self.__reader = partial(getattr, self.__accessor, sReader.rstrip("()"))
+
+
+        if self.isWritable():
+            sWriter = self.__writer
+            if sWriter.endswith("()"):
+                self.__writer = getattr(self.__accessor, sWriter.rstrip("()"))
+            else:
+                self.__writer = partial(getattr, self.__accessor, sWriter.rstrip("()"))
 
     def getParam(self, sParam, default="NoEntry"):
 
@@ -42,11 +76,29 @@ class MetaProperty(object):
     def isInput(self):
         return self.propertyDct.get("inputData", False)
 
+    def isReadable(self):
+        return self.__readable
+
+    def isWritable(self):
+        return self.__writable
+
     def isStorable(self):
         return self.__storable
 
     def isValidValue(self, value):
         return True
+
+    def read(self):
+
+        self.initAccessors()
+
+        return self.__reader()
+
+    def write(self):
+
+        self.initAccessors()
+
+        return self.__writer()
 
     def getattr_(self, *args):
         return getattr(self._metaobj, self.name, *args)

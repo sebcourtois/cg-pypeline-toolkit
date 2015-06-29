@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     drcLib = DrcRepository("testlib", r"\\Diskstation\z2k\05_3D\zombillenium")
 
-    view.loadModelData(drcLib)
+    view.setupModelData(drcLib)
     view.show()
 
     sys.exit(app.exec_())

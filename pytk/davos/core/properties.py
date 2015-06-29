@@ -10,9 +10,11 @@ from pytk.core.metaobject import MetaObject
 DrcEntryProperties = (
 ('name',
     {
-    'type': 'drc_info',
+    'type':'drc_info',
     'isMulti':False,
-    'storable':"fileName",
+    'accessor':'_qfileinfo',
+    'read':'fileName()',
+    'storable':False,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiCategory':'01_General',
@@ -21,9 +23,11 @@ DrcEntryProperties = (
 ),
 ('modifTime',
     {
-    'type': 'drc_time',
+    'type':'drc_time',
     'isMulti':False,
-    'storable':'lastModified',
+    'accessor':'_qfileinfo',
+    'read':'lastModified()',
+    'storable':False,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Modif. Date',
@@ -32,9 +36,11 @@ DrcEntryProperties = (
 ),
 ('creationTime',
     {
-    'type': 'drc_time',
+    'type':'drc_time',
     'isMulti':False,
-    'storable':'created' ,
+    'accessor':'_qfileinfo',
+    'read':'created()',
+    'storable':False,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Creation Date',
@@ -44,23 +50,14 @@ DrcEntryProperties = (
 )
 
 DrcFileProperties = [
-('suffix',
-    {
-    'type': 'drc_info',
-    'isMulti':False,
-    'default':'',
-    'storable':False,
-    'uiEditable':Eds.Disabled,
-    'uiVisible':True,
-    'uiDisplay':'Type',
-    'uiCategory':'01_General',
-    }
-),
+
 ('fileSize',
     {
-    'type': 'drc_size',
+    'type':'drc_size',
     'isMulti':False,
-    'storable':'size',
+    'accessor':'_qfileinfo',
+    'read':'size()',
+    'storable':False,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Size',
@@ -72,12 +69,8 @@ DrcFileProperties.extend(DrcEntryProperties)
 
 class FileInfoProperty(MetaProperty):
 
-    def read(self):
-        value = getattr(self._metaobj._qfileinfo, self.storageName)
-        return value() if callable(value) else value
-
-    def write(self, value):
-        return True
+    def __init__(self, *args):
+        super(FileInfoProperty, self).__init__(*args)
 
 class FileTimeProperty(FileInfoProperty):
 
@@ -89,8 +82,6 @@ class FileSizeProperty(FileInfoProperty):
     def read(self):
         return MemSize(FileInfoProperty.read(self))
 
-    def displayText(self):
-        return "{0:.0cM}".format(self.getattr_())
 
 class PropertyFactory(BasePropertyFactory):
 

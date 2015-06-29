@@ -16,7 +16,7 @@ class AssetBrowserWidget(QtGui.QWidget, Ui_AssetBrowserWidget):
     def autoResizeImage(self, *args):
         self.propertyEditorView.resizeImageButton(self.splitter.sizes()[1])
 
-    def loadModelData(self, metamodel):
+    def setupModelData(self, metamodel):
 
         treeWidget = self.treeWidget
 

@@ -35,7 +35,8 @@ class MetaObject(object):
         for sProperty, _ in self.__class__.propertiesDctItems:
 
             metaProperty = self.__metaProperties[sProperty]
-            setattr(self, metaProperty.name, metaProperty.read())
+            if metaProperty.isReadable():
+                setattr(self, metaProperty.name, metaProperty.read())
 
     def metaProperty(self, sProperty):
         return self.__metaProperties.get(sProperty)

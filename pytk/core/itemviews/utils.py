@@ -8,7 +8,6 @@ from PySide import QtGui
 from pytk.util.sysutils import toUnicode
 from pytk.util.sysutils import MemSize
 from pytk.util.sysutils import isIterable
-from pytk.util.external.pathlib import Path
 
 
 class ItemUserFlag:
@@ -79,8 +78,4 @@ def toEditText(value, sep=", "):
     else:
         return toUnicode(value)
 
-def toDecorationIcon(value, iconProvider):
-
-    if isinstance(value, Path):
-        return iconProvider.icon(toUnicode(Path))
 
