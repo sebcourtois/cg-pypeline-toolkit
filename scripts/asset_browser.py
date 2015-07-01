@@ -3,7 +3,7 @@ import sys
 
 from PySide import QtGui
 
-from pytk.davos.core.drctypes import DrcRepository
+from pytk.davos.core.drclibrary import DrcLibrary
 from pytk.davos.gui.assetbrowserwidget import AssetBrowserWidget
 #from pytk.core.itemviews.basetreeview import BaseTreeView
 
@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     view = AssetBrowserWidget()
 
-    drcLib = DrcRepository("testlib", r"\\Diskstation\z2k\05_3D\zombillenium")
+    drcLib = DrcLibrary("testlib", r"\\Diskstation\z2k\05_3D\zombillenium")
 
     view.setupModelData(drcLib)
     view.show()

@@ -69,8 +69,8 @@ DrcFileProperties.extend(DrcEntryProperties)
 
 class FileInfoProperty(MetaProperty):
 
-    def __init__(self, *args):
-        super(FileInfoProperty, self).__init__(*args)
+    def __init__(self, sProperty, metaobj):
+        super(FileInfoProperty, self).__init__(sProperty, metaobj)
 
 class FileTimeProperty(FileInfoProperty):
 

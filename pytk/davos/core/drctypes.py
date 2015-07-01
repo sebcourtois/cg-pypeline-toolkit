@@ -4,38 +4,10 @@ import os
 from PySide.QtCore import QDir
 
 from pytk.util.logutils import logMsg
-from pytk.util.sysutils import listClassesFromModule
-#from pytk.util.fsutils import isDirStat, isFileStat
 from pytk.util.qtutils import toQFileInfo
 
 from .properties import DrcMetaObject
 from .properties import DrcEntryProperties, DrcFileProperties
-
-class DrcRepository(object):
-
-    def __init__(self, sDrcLibName, drcLibRootDir):
-
-        self.loadedEntriesCache = {}
-
-        self.name = sDrcLibName
-        self._rootobj = DrcDir(self, drcLibRootDir)
-
-    def listUiClasses(self):
-
-        return sorted((cls for (_, cls) in listClassesFromModule(__name__)
-                                if hasattr(cls, "classUiPriority")), key=lambda c: c.classUiPriority)
-
-    def entry(self, drcPath):
-
-        drcPath = toQFileInfo(drcPath)
-
-        drcEntry = self.loadedEntriesCache.get(drcPath.absoluteFilePath())
-        if drcEntry:
-            drcEntry.loadData(drcPath)
-            return drcEntry
-
-        return DrcEntry(self, drcPath)
-
 
 class DrcEntry(DrcMetaObject):
 
@@ -48,12 +20,12 @@ class DrcEntry(DrcMetaObject):
 
     def __new__(cls, drcLibrary, drcPath=None):
 
-        drcPath = toQFileInfo(drcPath)
+        fileInfo = toQFileInfo(drcPath)
 
         if (cls is DrcEntry):
-            if drcPath.isDir():
+            if fileInfo.isDir():
                 cls = DrcDir
-            elif drcPath.isFile():
+            elif fileInfo.isFile():
                 cls = DrcFile
 
         return super(DrcEntry, cls).__new__(cls)
@@ -63,13 +35,12 @@ class DrcEntry(DrcMetaObject):
         self.library = drcLibrary
         super(DrcEntry, self).__init__()
 
-        drcPath = toQFileInfo(drcPath)
-        if drcPath:
-            self.loadData(drcPath)
-
-    def loadData(self, drcPath):
-
         fileInfo = toQFileInfo(drcPath)
+        if fileInfo:
+            self.loadData(fileInfo)
+
+    def loadData(self, fileInfo):
+
         self._qfileinfo = fileInfo
         self.__pathname = fileInfo.absoluteFilePath()
 

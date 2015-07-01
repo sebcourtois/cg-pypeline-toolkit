@@ -1,7 +1,7 @@
 
 
 import os
-ospth = os.path
+import os.path as osp
 import re
 import fnmatch
 import json
@@ -18,26 +18,26 @@ def isDirStat(statobj):
 def isFileStat(statobj):
     return stat.S_ISREG(statobj.st_mode)
 
-def normPath(path):
-    return ospth.normpath(path).replace("\\", "/")
+def pathNorm(p):
+    return osp.normpath(p).replace("\\", "/")
 
-def joinPath(*args):
+def pathJoin(*args):
     try:
-        p = ospth.join(*args)
+        p = osp.join(*args)
     except UnicodeDecodeError:
-        p = ospth.join(*tuple(toUnicode(arg) for arg in args))
+        p = osp.join(*tuple(toUnicode(arg) for arg in args))
 
-    return normPath(p)
+    return pathNorm(p)
 
-def resolvePath(path):
-    return normPath(ospth.expanduser(ospth.expandvars(path)))
+def pathResolve(p):
+    return pathNorm(osp.expanduser(osp.expandvars(p)))
 
 def ignorePatterns(*patterns):
     """Function that can be used as iterPaths() ignore parameters.
 
     Patterns is a sequence of glob-style patterns
     that are used to exclude files"""
-    def _ignore_patterns(path, names):
+    def _ignore_patterns(p, names):
         ignored_names = []
         for pattern in patterns:
             ignored_names.extend(fnmatch.filter(names, pattern))
@@ -46,7 +46,7 @@ def ignorePatterns(*patterns):
 
 def iterPaths(sRootDirPath, **kwargs):
 
-    if not ospth.isdir(sRootDirPath):
+    if not osp.isdir(sRootDirPath):
         raise ValueError, 'No such directory found: "{0}"'.format(sRootDirPath)
 
     bFiles = kwargs.pop("files", True)
@@ -69,7 +69,7 @@ def iterPaths(sRootDirPath, **kwargs):
 
         if bDirs:
             for sDir in sDirNames:
-                yield addTrailingSlash(joinPath(sDirPath, sDir))
+                yield addTrailingSlash(pathJoin(sDirPath, sDir))
 
         if ignoreFilesFunc is not None:
             sIgnoredFiles = ignoreFilesFunc(sDirPath, sFileNames)
@@ -80,18 +80,18 @@ def iterPaths(sRootDirPath, **kwargs):
                 if sFileName in sIgnoredFiles:
                     continue
 
-                yield joinPath(sDirPath, sFileName)
+                yield pathJoin(sDirPath, sFileName)
 
 def addTrailingSlash(sDirPath):
     return sDirPath if sDirPath.endswith("/") else sDirPath + "/"
 
 def commonDir(sPathList):
-    sDir = ospth.commonprefix(sPathList)
-    return sDir if (sDir[-1] in ("\\", "/")) else (ospth.dirname(sDir) + "/")
+    sDir = osp.commonprefix(sPathList)
+    return sDir if (sDir[-1] in ("\\", "/")) else (osp.dirname(sDir) + "/")
 
 def copyFile(sSrcFilePath, sDestPath, **kwargs):
 
-    if ospth.normcase(sSrcFilePath) == ospth.normcase(sDestPath):
+    if osp.normcase(sSrcFilePath) == osp.normcase(sDestPath):
         raise ValueError, "Path of source and destination files are the same."
 
     return file_util.copy_file(sSrcFilePath, sDestPath, **kwargs)
@@ -116,13 +116,13 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
         #import cryptUtil
         sEncryptExtList = list(e.strip(".") for e in sEncryptExtList)
 
-    sSrcRootDir = addTrailingSlash(normPath(in_sSrcRootDir))
-    sDestRootDir = addTrailingSlash(normPath(in_sDestRootDir))
+    sSrcRootDir = addTrailingSlash(pathNorm(in_sSrcRootDir))
+    sDestRootDir = addTrailingSlash(pathNorm(in_sDestRootDir))
 
-    if not ospth.isdir(sSrcRootDir):
+    if not osp.isdir(sSrcRootDir):
         raise ValueError, 'No such directory found: "{0}"'.format(sSrcRootDir)
 
-    if not ospth.isdir(sDestRootDir):
+    if not osp.isdir(sDestRootDir):
         print 'Creating destination directory: "{0}"'.format(sDestRootDir)
         if not bDryRun:
             os.makedirs(sDestRootDir)
@@ -147,7 +147,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
         iMaxPathLen = 0
         for i, sFilePath in enumerate(sFilePathList):
 
-            sSrcDir = addTrailingSlash(normPath(ospth.dirname(sFilePath)))
+            sSrcDir = addTrailingSlash(pathNorm(osp.dirname(sFilePath)))
 
             sRexpList = srcRootDirRexp.findall(sSrcDir)
             if not sRexpList:
@@ -186,7 +186,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
         #creating directories
         for sDestDir in sorted(set(sDestDirList)):
-            if (not ospth.isdir(sDestDir)) and (not bDryRun):
+            if (not osp.isdir(sDestDir)) and (not bDryRun):
                 os.makedirs(sDestDir)
 
         #copying files
@@ -194,12 +194,12 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
             for sFilePath, sDestDir in zip(sFilePathList, sDestDirList):
 
-                sPath, sExt = ospth.splitext(sFilePath); sExt = sExt.strip(".")
+                sPath, sExt = osp.splitext(sFilePath); sExt = sExt.strip(".")
                 sNewExt = sReplaceExtDct.get(sExt, "")
                 if sNewExt:
-                    sDestPath = joinPath(sDestDir, ospth.basename(sPath)) + "." + sNewExt.strip(".")
+                    sDestPath = pathJoin(sDestDir, osp.basename(sPath)) + "." + sNewExt.strip(".")
                 else:
-                    sDestPath = joinPath(sDestDir, ospth.basename(sFilePath))
+                    sDestPath = pathJoin(sDestDir, osp.basename(sFilePath))
 
                 bCopied = True
                 if sExt in sEncryptExtList:
@@ -213,11 +213,11 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
             for sFilePath, sDestDir in zip(sFilePathList, sDestDirList):
 
-                sExt = ospth.splitext(sFilePath)[1].strip(".")
+                sExt = osp.splitext(sFilePath)[1].strip(".")
 
                 #print "\t{0} >> {1}".format( srcRootDirRexp.split( sFilePath, 1 )[1], destRootDirRexp.split( sDestDir, 1 )[1] )
 
-                sDestPath = joinPath(sDestDir, ospth.basename(sFilePath))
+                sDestPath = pathJoin(sDestDir, osp.basename(sFilePath))
 
                 bCopied = True
                 if sExt in sEncryptExtList:
@@ -231,7 +231,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
             for sFilePath, sDestDir in zip(sFilePathList, sDestDirList):
 
-                sDestPath = joinPath(sDestDir, ospth.basename(sFilePath))
+                sDestPath = pathJoin(sDestDir, osp.basename(sFilePath))
 
                 _, bCopied = copyFile(sFilePath, sDestPath, **kwargs)
 
