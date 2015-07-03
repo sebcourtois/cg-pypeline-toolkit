@@ -7,18 +7,49 @@ from pytk.core.metaproperty import MetaProperty
 from pytk.core.metaproperty import EditState as Eds
 from pytk.core.metaobject import MetaObject
 
-DrcEntryProperties = (
-('name',
+
+DrcLibraryProperties = (
+('label',
     {
-    'type':'drc_info',
+    'type':'drc_base',
     'isMulti':False,
-    'accessor':'_qfileinfo',
-    'read':'fileName()',
+    'accessor':'',
+    'read':'',
     'storable':False,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiCategory':'01_General',
     'uiDecorated':True,
+    }
+),
+)
+
+DrcEntryProperties = (
+('label',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'accessor':'',
+    'read':'',
+    'storable':False,
+    'uiEditable':Eds.Disabled,
+    'uiVisible':True,
+    'uiDisplay':'Name',
+    'uiCategory':'01_General',
+    'uiDecorated':True,
+    }
+),
+('name',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'accessor':'_qfileinfo',
+    'read':'fileName()',
+    'storable':False,
+    'uiEditable':Eds.Disabled,
+    'uiVisible':False,
+    'uiCategory':'01_General',
+    'uiDecorated':False,
     }
 ),
 ('modifTime',
@@ -67,29 +98,35 @@ DrcFileProperties = [
 ]
 DrcFileProperties.extend(DrcEntryProperties)
 
-class FileInfoProperty(MetaProperty):
+class DrcBaseProperty(MetaProperty):
 
     def __init__(self, sProperty, metaobj):
-        super(FileInfoProperty, self).__init__(sProperty, metaobj)
+        super(DrcBaseProperty, self).__init__(sProperty, metaobj)
 
-class FileTimeProperty(FileInfoProperty):
+    def getIconData(self):
+        return self._metaobj.getIconData()
 
-    def read(self):
-        return FileInfoProperty.read(self).toPython()
-
-class FileSizeProperty(FileInfoProperty):
+class FileTimeProperty(DrcBaseProperty):
 
     def read(self):
-        return MemSize(FileInfoProperty.read(self))
+        return DrcBaseProperty.read(self).toPython()
+
+
+class FileSizeProperty(DrcBaseProperty):
+
+    def read(self):
+        return MemSize(DrcBaseProperty.read(self))
+
 
 
 class PropertyFactory(BasePropertyFactory):
 
     propertyTypeDct = {
-    'drc_info' : FileInfoProperty,
+    'drc_base' : DrcBaseProperty,
     'drc_time' : FileTimeProperty,
     'drc_size' : FileSizeProperty,
     }
+
 
 
 class DrcMetaObject(MetaObject):

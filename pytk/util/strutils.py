@@ -74,18 +74,18 @@ def wordSplit(s, digits=False):
 def labelify(s):
     return " ".join((upperFirst(w) for w in wordSplit(s)))
 
-def underJoin(words):
+def underJoin(iterable):
 
-    if isinstance(words, basestring):
-        return words
+    if isinstance(iterable, basestring):
+        return iterable
 
-    return "_".join(words)
+    return "_".join(iterable)
 
-def camelJoin(words):
+def camelJoin(iterable):
 
-    if isinstance(words, basestring):
-        return words
+    if isinstance(iterable, basestring):
+        return iterable
 
-    return "".join((upperFirst(w) if i > 0 else w.lower() for i, w in enumerate(words)))
+    return "".join((upperFirst(w) if i > 0 else w.lower() for i, w in enumerate(iterable)))
 
 

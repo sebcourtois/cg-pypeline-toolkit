@@ -8,6 +8,8 @@ from .metaproperty import BasePropertyFactory
 
 class MetaObject(object):
 
+    classReprAttr = "name"
+
     propertiesDctItems = ()
     propertiesDct = {}
 
@@ -40,6 +42,11 @@ class MetaObject(object):
 
     def metaProperty(self, sProperty):
         return self.__metaProperties.get(sProperty)
+
+    def iterProperties(self, sPropertyList):
+
+        for sProperty in sPropertyList:
+            yield self.metaProperty(sProperty)
 
     def hasPrpty(self, sProperty):
         return sProperty in self.__metaProperties
@@ -82,7 +89,6 @@ class MetaObject(object):
         else:
             return cls.propertiesDct[sProperty].get(key, default)
 
-
     def createPrptyEditor(self, sProperty, parentWidget):
 
         assert sProperty in self.__metaProperties
@@ -106,7 +112,6 @@ class MetaObject(object):
             return list(metaProperty.castValue(v) for v in value)
         else:
             return metaProperty.castValue(value)
-
 
     def __writeAllValues(self, customPrptyDctItems=None):
         logMsg(self.__class__.__name__, log='all')
@@ -157,7 +162,6 @@ class MetaObject(object):
             return self.__writeAllValues(customPrptyDctItems)
         finally:
             self._writingValues_ = False
-
 
     def initPropertiesFromKwargs(self, **kwargs):
         logMsg(self.__class__.__name__, log='all')
@@ -227,8 +231,8 @@ class MetaObject(object):
 
         try:
             sClsName = upperFirst(cls.classLabel) if hasattr(cls, "classLabel") else cls.__name__
-            sRepr = ("{0}('{1}')".format(sClsName, self.name))
-        except:
+            sRepr = ("{0}('{1}')".format(sClsName, getattr(self, cls.classReprAttr)))
+        except AttributeError:
             sRepr = cls.__name__
 
         return sRepr

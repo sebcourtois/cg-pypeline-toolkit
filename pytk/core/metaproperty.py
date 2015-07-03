@@ -18,7 +18,7 @@ class MetaProperty(object):
 
         self.defaultValue = [] if self.__isMulti else copyOf(propertyDct.get("default", "undefined"))
 
-        self.__accessor = None
+        self._accessor = None
 
         sReader = propertyDct.get("read", sProperty)
         self.__readable = True if sReader else False
@@ -44,22 +44,22 @@ class MetaProperty(object):
 
         self.accessored = True
 
-        self.__accessor = getattr(self._metaobj, self.propertyDct["accessor"])
+        self._accessor = getattr(self._metaobj, self.propertyDct["accessor"])
 
         if self.isReadable():
             sReader = self.__reader
             if sReader.endswith("()"):
-                self.__reader = getattr(self.__accessor, sReader.rstrip("()"))
+                self.__reader = getattr(self._accessor, sReader.rstrip("()"))
             else:
-                self.__reader = partial(getattr, self.__accessor, sReader.rstrip("()"))
+                self.__reader = partial(getattr, self._accessor, sReader.rstrip("()"))
 
 
         if self.isWritable():
             sWriter = self.__writer
             if sWriter.endswith("()"):
-                self.__writer = getattr(self.__accessor, sWriter.rstrip("()"))
+                self.__writer = getattr(self._accessor, sWriter.rstrip("()"))
             else:
-                self.__writer = partial(getattr, self.__accessor, sWriter.rstrip("()"))
+                self.__writer = partial(getattr, self._accessor, sWriter.rstrip("()"))
 
     def getParam(self, sParam, default="NoEntry"):
 
@@ -108,10 +108,12 @@ class MetaProperty(object):
 
     def __repr__(self):
 
+        cls = self.__class__
+
         try:
-            sRepr = ('{0}( "{1}" )'.format("Property", self.name))
-        except:
-            sRepr = self.__class__.__name__
+            sRepr = ("{0}('{1}')".format(cls.__name__, self.name))
+        except AttributeError:
+            sRepr = cls.__name__
 
         return sRepr
 

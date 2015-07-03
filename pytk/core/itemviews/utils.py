@@ -46,7 +46,10 @@ def toDisplayText(value, sep=", "):
         return "on"
 
     elif isinstance(value, datetime.date):
-        return value.strftime("%Y/%m/%d %H:%M")
+        try:
+            return value.strftime("%Y/%m/%d %H:%M")
+        except ValueError:
+            return ""
 
     elif isinstance(value, MemSize):
         return "{0:.0cM}".format(value)

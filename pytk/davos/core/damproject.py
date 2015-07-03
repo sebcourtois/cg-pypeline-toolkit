@@ -3,9 +3,11 @@ import sys
 
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
-from pytk.util.fsutils import pathJoin
+from pytk.util.fsutils import pathJoin, pathResolve
+#from pytk.util.strutils import underJoin
 
 from .drclibrary import DrcLibrary
+
 
 def getConfigModule(sProjectName):
 
@@ -17,6 +19,11 @@ def getConfigModule(sProjectName):
     reload(modobj)
 
     return modobj
+
+BUDDY_SPACES = {
+"public":"private",
+"private":"public",
+}
 
 class DamProject(object):
 
@@ -39,8 +46,7 @@ class DamProject(object):
             return None
 
         #proj.cookieFilePath = pathJoin(proj.getPath(space="local"), "damas.lwp")
-
-        proj.loadLibraries("public")
+        proj.loadLibraries()
 
         return proj
 
@@ -52,15 +58,29 @@ class DamProject(object):
 
         self.loadedLibraries = {}
 
-    def loadLibraries(self, sSpace):
+    def loadLibraries(self):
 
         for sLibName in self.getVar("project", "libraries"):
-            sLibPath = self.getVar(sLibName, sSpace + "_path")
-            drcLib = DrcLibrary(sLibName, sLibPath)
-            self.loadedLibraries[sLibName] = drcLib
+            for sSpace in ("public", "private"):
+                self.loadLibrary(sSpace, sLibName)
+
+    def loadLibrary(self, sSpace, sLibName):
+
+        sLibPath = pathResolve(self.getVar(sLibName, sSpace + "_path"))
+        drcLib = DrcLibrary(sLibName, sLibPath, sSpace, self)
+
+        return drcLib
+
+    def getLibrary(self, sSpace, sLibName):
+
+        sFullName = DrcLibrary.makeFullName(sSpace, sLibName)
+        drcLib = self.loadedLibraries.get(sFullName)
+
+        return drcLib
 
     def getVar(self, sSection, sVarName, default="NoEntry", **kwargs):
         return self.__confobj.getVar(sSection, sVarName, default="NoEntry", **kwargs)
+
 
     def getLibPath(self, sSpace, sLibName, sPathVar="NoEntry"):
 
@@ -69,4 +89,18 @@ class DamProject(object):
             return pathJoin(sLibPath, self.getVar(sLibName, sPathVar))
 
         return sLibPath
+
+    def listUiClasses(self):
+        return self.loadedLibraries.values()[0].listUiClasses()
+
+    def iterChildren(self):
+        return self.loadedLibraries.itervalues()
+
+    def editFile(self, drcFile):
+        pass
+
+
+
+
+
 

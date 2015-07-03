@@ -18,23 +18,28 @@ class BaseContextMenu(QtGui.QMenu):
         self.createActions()
         self.buildSubmenus()
 
-    def model(self):
-        return self.view.model()
-
     def getActionSelection(self):
 
-        selectedItems = self.view.selectionModel().selectedItems[:]
+        view = self.view
+        model = view.model()
+        selectModel = view.selectionModel()
 
-        if selectedItems:
-            currentItems = self.model().itemFromIndex(self.view.currentIndex())
-            if currentItems:
+        selIndexes = selectModel.selectedRows(0)
 
-                try: selectedItems.remove(currentItems)
+        if len(selIndexes) > 1:
+
+            curIndex = selectModel.currentIndex()
+            curIndex = curIndex.sibling(curIndex.row(), 0)
+
+            if curIndex.isValid() and curIndex != selIndexes[-1]:
+
+                try: selIndexes.remove(curIndex)
                 except ValueError: pass
 
-                selectedItems.append(currentItems)
+                selIndexes.append(curIndex)
 
-        return selectedItems
+        itemFromIndex = model.itemFromIndex
+        return [itemFromIndex(idx) for idx in selIndexes]
 
     def loadActionSelection(self):
 
@@ -111,7 +116,9 @@ class BaseContextMenu(QtGui.QMenu):
         del qMenuDct["Main"]
         return qMenuDct
 
-    def yieldAllowedActions(self, leaf):
+    def iterAllowedActions(self, prptyItem):
+
+        sTypeName = type(prptyItem._metaobj).__name__
 
         for actionDct in self.createdActionConfigs:
 
@@ -123,7 +130,7 @@ class BaseContextMenu(QtGui.QMenu):
             allowedTypes = getattr(fnc, "auth_types", None)
             if not allowedTypes:
                 yield qAction
-            elif type(leaf).__name__ in allowedTypes:
+            elif sTypeName in allowedTypes:
                 yield qAction
 
     def updateVisibilities(self):
@@ -132,8 +139,8 @@ class BaseContextMenu(QtGui.QMenu):
             return
 
         allowedActions = set(self.createdActions)
-        for leaf in self.actionSelection:
-            allowedActions.intersection_update(self.yieldAllowedActions(leaf))
+        for prptyItem in self.actionSelection:
+            allowedActions.intersection_update(self.iterAllowedActions(prptyItem))
 
         if not allowedActions:
             return
@@ -145,6 +152,9 @@ class BaseContextMenu(QtGui.QMenu):
             qMenu.menuAction().setVisible(not qMenu.isEmpty())
 
     def launch(self, event):
+
         self.loadActionSelection()
         self.updateVisibilities()
         self.exec_(event.globalPos())
+
+

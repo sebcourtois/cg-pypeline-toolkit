@@ -1,7 +1,6 @@
 
-from PySide import QtCore
+from PySide.QtCore import Qt, QFileInfo
 from PySide import QtGui
-Qt = QtCore.Qt
 
 from pytk.core.itemviews.baseproxymodel import BaseProxyModel
 from pytk.core.itemviews.basetreeview import BaseTreeView
@@ -12,23 +11,28 @@ from pytk.core.itemviews.propertyitemmodel import PropertyIconProvider
 from pytk.util.logutils import logMsg
 
 from .childrenwidget import ChildrenWidget
+from .browsercontextmenu import BrowserContextMenu
 
 
-class FileIconProvider(PropertyIconProvider):
+class DrcIconProvider(PropertyIconProvider):
 
     def __init__(self):
-        super(FileIconProvider, self).__init__()
+        super(DrcIconProvider, self).__init__()
         self.__qprovider = QtGui.QFileIconProvider()
 
     def icon(self, metaprpty):
-        fileInfo = metaprpty._metaobj._qfileinfo
-        if fileInfo.isDir():
-            return self.__qprovider.icon(QtGui.QFileIconProvider.Folder)
-        return self.__qprovider.icon(fileInfo)
+        value = metaprpty.getIconData()
+        if isinstance(value, QFileInfo):
+            if value.isDir():
+                return self.__qprovider.icon(QtGui.QFileIconProvider.Folder)
+            return self.__qprovider.icon(value)
 
-class DrcEntryModel(PropertyItemModel):
+        return PropertyIconProvider.icon(self, metaprpty)
 
-    iconProviderClass = FileIconProvider
+class DrcTreeModel(PropertyItemModel):
+
+    iconProviderClass = DrcIconProvider
+
 
 class BrowserProxyModel(BaseProxyModel):
 
@@ -45,29 +49,30 @@ class BrowserProxyModel(BaseProxyModel):
 
         return BaseProxyModel.filterAcceptsRow(self, srcRow, srcParentIndex)
 
+
 class BrowserTreeWidget(BaseTreeWidget):
 
-    itemModelClass = DrcEntryModel
+    itemModelClass = DrcTreeModel
     proxyModelClass = BrowserProxyModel
     treeViewClass = BaseTreeView
-#    contextMenuClass = ContextMenu
+    contextMenuClass = BrowserContextMenu
 
     def __init__(self, parent=None, childrenViewEnabled=True):
         super(BrowserTreeWidget, self).__init__(parent)
 
         self.treeView.mousePressEventButtons = (Qt.LeftButton,)
 
-        #Create the childrenWidget
+        # Create the childrenWidget
         self.childrenWidget = ChildrenWidget(self)
 
-        #Create a widget named "switchWidget" to get the place of dataView in the splitter
+        # Create a widget named "switchWidget" to get the place of dataView in the splitter
         self.switchWidget = QtGui.QWidget(self.splitter)
         self.splitter.insertWidget(1, self.switchWidget)
 
-        #Place dataView inside this new switchWidget
+        # Place dataView inside this new switchWidget
         self.dataView.setParent(self.switchWidget)
 
-        #Create a layout for the switchWidget
+        # Create a layout for the switchWidget
         self.switchLayout = QtGui.QVBoxLayout(self.switchWidget)
         self.switchLayout.setSpacing(0)
         self.switchLayout.setContentsMargins(0, 0, 0, 0)

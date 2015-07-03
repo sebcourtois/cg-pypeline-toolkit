@@ -3,12 +3,14 @@ from PySide import QtGui
 from PySide import QtCore
 from PySide.QtCore import Qt
 
-from pytk.core.itemviews.basecontextmenu import BaseContextMenu
+#from pytk.core.itemviews.basecontextmenu import BaseContextMenu
 from pytk.core.itemviews.basetreeview import BaseTreeView
+
+from .browsercontextmenu import BrowserContextMenu
 
 class ChildrenView(BaseTreeView):
 
-    contextMenuClass = BaseContextMenu
+    contextMenuClass = BrowserContextMenu
 
     rootIndexChanged = QtCore.Signal(QtCore.QModelIndex)
 
