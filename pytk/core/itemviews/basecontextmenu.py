@@ -2,6 +2,7 @@
 import functools
 
 from PySide import QtGui
+SelectionBehavior = QtGui.QAbstractItemView.SelectionBehavior
 
 from pytk.core.itemviews.utils import createAction
 from pytk.util.logutils import logMsg
@@ -24,12 +25,22 @@ class BaseContextMenu(QtGui.QMenu):
         model = view.model()
         selectModel = view.selectionModel()
 
-        selIndexes = selectModel.selectedRows(0)
+        selBhv = view.selectionBehavior()
+        if selBhv == SelectionBehavior.SelectRows:
+            selIndexes = selectModel.selectedRows(0)
+        elif selBhv == SelectionBehavior.SelectColumns:
+            selIndexes = selectModel.selectedColumns(0)
+        else:
+            selIndexes = selectModel.selectedIndexes()
 
         if len(selIndexes) > 1:
 
             curIndex = selectModel.currentIndex()
-            curIndex = curIndex.sibling(curIndex.row(), 0)
+
+            if selBhv == SelectionBehavior.SelectRows:
+                curIndex = curIndex.sibling(curIndex.row(), 0)
+            elif selBhv == SelectionBehavior.SelectColumns:
+                curIndex = curIndex.sibling(0, curIndex.column())
 
             if curIndex.isValid() and curIndex != selIndexes[-1]:
 
@@ -156,5 +167,14 @@ class BaseContextMenu(QtGui.QMenu):
         self.loadActionSelection()
         self.updateVisibilities()
         self.exec_(event.globalPos())
+
+    def refreshItems(self, *itemList, **kwargs):
+
+        sRefreshFunc = "update"
+        if self.view.selectionBehavior() == SelectionBehavior.SelectRows:
+            sRefreshFunc = "updateRow"
+
+        for item in itemList:
+            getattr(item, sRefreshFunc)()
 
 

@@ -15,7 +15,9 @@ class PyConfParser(object):
         elif insp.isclass(pyobj):
             pass
         else:
-            raise TypeError("pyobj argument must be of type <module> or <class>. Got {0}".format(type(pyobj)))
+            raise TypeError(
+                    "argument 'pyobj' must be of type <module> or <class>. Got {0}"
+                    .format(type(pyobj)))
 
         self._pyobj = pyobj
 
@@ -138,7 +140,7 @@ class PyConfParser(object):
             self.__sections[sSection] = PyConfParser(sectionCls)
 
     def getSection(self, sSectionName):
-        return self.__sections[sSectionName]#PyConfParser(getattr(self._pyobj, sSectionName))
+        return self.__sections[sSectionName]
 
     def formatedErrors(self, sErrorList):
         return 'Failed initializing {0}: \n\t{1}'.format(self, "\n\t".join(sErrorList))

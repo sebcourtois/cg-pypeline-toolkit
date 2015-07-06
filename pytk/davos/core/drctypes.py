@@ -26,23 +26,14 @@ class DrcEntry(DrcMetaObject):
 
     primaryProperty = propertiesDctItems[0][0] # defines which property will be displayed as a Tree in UI.
 
-    def __new__(cls, drcLibrary, drcPath=None, space=""):
-
-        fileInfo = toQFileInfo(drcPath)
-
-        if (cls is DrcEntry):
-            if fileInfo.isDir():
-                cls = DrcDir
-            elif fileInfo.isFile():
-                cls = DrcFile
-
-        return super(DrcEntry, cls).__new__(cls)
-
     def __init__(self, drcLibrary, drcPath=None):
 
         self.library = drcLibrary
         self._qfileinfo = None
         self._qdir = None
+
+        self.loadedChildren = []
+        self.childrenLoaded = False
 
         super(DrcEntry, self).__init__()
 
@@ -54,18 +45,16 @@ class DrcEntry(DrcMetaObject):
 
         fileInfo.setCaching(True)
 
-        if not self._qfileinfo:
-            self._qfileinfo = fileInfo
+        qfileinfo = self._qfileinfo
+        if qfileinfo and qfileinfo == qfileinfo:
+            fileInfo.refresh()
+            self._qdir.refresh()
         else:
-            self._qfileinfo.refresh()
+            self._qfileinfo = fileInfo
+            self.pathname = fileInfo.absoluteFilePath()
 
-        self.pathname = fileInfo.absoluteFilePath()
-
-        if not self._qdir:
             self._qdir = QDir(self.pathname)
             self._qdir.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot | QDir.AllDirs)
-        else:
-            self._qdir.refresh()
 
         DrcMetaObject.loadData(self)
 
@@ -73,12 +62,84 @@ class DrcEntry(DrcMetaObject):
         self.baseName, self.suffix = os.path.splitext(sEntryName)
         self.label = sEntryName
 
-        self.__remember()
+        self._remember()
 
         fileInfo.setCaching(False)
 
-    def refresh(self):
-        self.loadData(self._qfileinfo)
+    def addModelRow(self, parent):
+
+        model = self.library._propertyItemModel
+        if not model:
+            return
+
+        parentPrpty = parent.metaProperty(model.primaryProperty)
+
+        for parentItem in parentPrpty.viewItems:
+            model.loadRowItems(self, parentItem)
+
+    def delModelRow(self):
+
+        model = self.library._propertyItemModel
+        primePrpty = self.metaProperty(model.primaryProperty)
+
+        for primeItem in primePrpty.viewItems:
+
+            parentItem = primeItem.parent()
+            parentItem.removeRow(primeItem.row())
+
+        primePrpty.viewItems = []
+
+    def updateModelRow(self):
+        logMsg(log='all')
+
+        model = self.library._propertyItemModel
+        if not model:
+            return
+
+        primePrpty = self.metaProperty(model.primaryProperty)
+
+        for primeItem in primePrpty.viewItems:
+            primeItem.updateRow()
+
+    def parent(self):
+        return self.library.getEntry(self._qfileinfo.absolutePath())
+
+    def loadChildren(self):
+
+        self.childrenLoaded = True
+
+        for child in self.iterChildren():
+            child.addModelRow(self)
+            self.loadedChildren.append(child)
+
+    def refresh(self, parent=None):
+        logMsg(log="all")
+
+        if self._writingValues_:
+            return
+
+        logMsg('Refreshing : {0}'.format(self), log='debug')
+
+        fileInfo = self._qfileinfo
+
+        if not fileInfo.exists():
+            self._forget(recursive=True)
+            if parent:
+                parent.loadedChildren.remove(self)
+        else:
+            self.loadData(fileInfo)
+            self.updateModelRow()
+
+            if self.childrenLoaded:
+
+                oldChildren = self.loadedChildren[:]
+                for child in self.iterChildren():
+                    if child not in oldChildren:
+                        child.addModelRow(self)
+                        self.loadedChildren.append(child)
+
+                for child in oldChildren:
+                    child.refresh(parent=self)
 
     def isPublic(self):
         return self.library.space == "public"
@@ -87,8 +148,8 @@ class DrcEntry(DrcMetaObject):
         return self.library.space == "private"
 
     def iterChildren(self):
-        entry = self.library.entry
-        return (entry(child) for child in self._qdir.entryInfoList())
+        getEntry = self.library.getEntry
+        return (getEntry(info) for info in self._qdir.entryInfoList())
 
     def hasChildren(self):
         return False
@@ -96,25 +157,38 @@ class DrcEntry(DrcMetaObject):
     def getIconData(self):
         return self._qfileinfo
 
-    def __remember(self):
+    def _remember(self):
 
         key = self.pathname
         loadedEntriesCache = self.library.loadedEntriesCache
 
         if key in loadedEntriesCache:
-            logMsg("Already remembered : {0}.".format(self), log="debug")
+            logMsg("Already loaded : {0}.".format(self), log="debug")
         else:
             loadedEntriesCache[key] = self
 
-    def __forget(self):
+    def __forgetOne(self):
 
         key = self.pathname
         loadedEntriesCache = self.library.loadedEntriesCache
 
         if key not in loadedEntriesCache:
-            logMsg("Already forgotten : {0}.".format(self), log="debug")
+            logMsg("Already dumped : {0}.".format(self), log="debug")
         else:
+            self.delModelRow()
             return loadedEntriesCache.pop(key)
+
+    def _forget(self, **kwargs):
+        logMsg(self.__class__.__name__, log='all')
+
+        bRecursive = kwargs.get("recursive", True)
+
+        if bRecursive:
+
+            for child in self.loadedChildren[:]:
+                child._forget(**kwargs)
+
+        self.__forgetOne()
 
     def __getattr__(self, sAttrName):
 
@@ -125,6 +199,13 @@ class DrcEntry(DrcMetaObject):
             s = "'{}' object has no attribute '{}'".format(type(self).__name__, sAttrName)
             raise AttributeError(s)
 
+
+    def __cmp__(self, other):
+
+        if not isinstance(other, self.__class__):
+            return cmp(1 , None)
+
+        return cmp(self.pathname , other.pathname)
 
 class DrcDir(DrcEntry):
 
@@ -192,7 +273,6 @@ class DrcFile(DrcEntry):
         if (not bForce) and os.path.exists(sPrivFilePath):
 
             bEqualFiles = filecmp.cmp(sPubFilePath, sPrivFilePath, shallow=True)
-            print bEqualFiles
 
             if not bEqualFiles:
 

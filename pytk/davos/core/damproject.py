@@ -1,29 +1,32 @@
 
-import sys
-
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
 from pytk.util.fsutils import pathJoin, pathResolve
-#from pytk.util.strutils import underJoin
+from pytk.util.sysutils import importModule
 
 from .drclibrary import DrcLibrary
 
-
-def getConfigModule(sProjectName):
-
-    sConfigModule = 'pytk.davos.config.' + sProjectName
-
-    __import__(sConfigModule)
-
-    modobj = sys.modules.get(sConfigModule)
-    reload(modobj)
-
-    return modobj
 
 BUDDY_SPACES = {
 "public":"private",
 "private":"public",
 }
+
+
+def getConfigModule(sProjectName):
+
+    sConfigModule = sProjectName
+
+    try:
+        modobj = importModule(sConfigModule)
+    except ImportError:
+        sConfigModule = 'pytk.davos.config.' + sProjectName
+        modobj = importModule(sConfigModule)
+
+    reload(modobj)
+
+    return modobj
+
 
 class DamProject(object):
 
@@ -45,8 +48,7 @@ class DamProject(object):
                 logMsg(msg , warning=True)
             return None
 
-        #proj.cookieFilePath = pathJoin(proj.getPath(space="local"), "damas.lwp")
-        proj.loadLibraries()
+        # proj.cookieFilePath = pathJoin(proj.getPath(space="local"), "damas.lwp")
 
         return proj
 
@@ -56,42 +58,45 @@ class DamProject(object):
         self.damas = None
         self.authenticated = False
 
+        self._propertyItemModel = None
         self.loadedLibraries = {}
 
     def loadLibraries(self):
 
         for sLibName in self.getVar("project", "libraries"):
             for sSpace in ("public", "private"):
-                self.loadLibrary(sSpace, sLibName)
-
-    def loadLibrary(self, sSpace, sLibName):
-
-        sLibPath = pathResolve(self.getVar(sLibName, sSpace + "_path"))
-        drcLib = DrcLibrary(sLibName, sLibPath, sSpace, self)
-
-        return drcLib
+                self.getLibrary(sSpace, sLibName)
 
     def getLibrary(self, sSpace, sLibName):
 
         sFullName = DrcLibrary.makeFullName(sSpace, sLibName)
-        drcLib = self.loadedLibraries.get(sFullName)
+        drcLib = self.loadedLibraries.get(sFullName, None)
+
+        if not drcLib:
+            sLibPath = pathResolve(self.getVar(sLibName, sSpace + "_path"))
+            lib = DrcLibrary(sLibName, sLibPath, sSpace, self)
+            lib.addModelRow()
 
         return drcLib
 
     def getVar(self, sSection, sVarName, default="NoEntry", **kwargs):
         return self.__confobj.getVar(sSection, sVarName, default="NoEntry", **kwargs)
 
+    def getRcPath(self, sSpace, sLibName, sRcVar="NoEntry"):
 
-    def getLibPath(self, sSpace, sLibName, sPathVar="NoEntry"):
+        sRcPath = self.getVar(sLibName, sSpace + "_path")
+        if sRcVar != "NoEntry":
+            return pathJoin(sRcPath, self.getVar(sLibName, sRcVar))
 
-        sLibPath = self.getVar(sLibName, sSpace + "_path")
-        if sPathVar != "NoEntry":
-            return pathJoin(sLibPath, self.getVar(sLibName, sPathVar))
-
-        return sLibPath
+        return sRcPath
 
     def listUiClasses(self):
-        return self.loadedLibraries.values()[0].listUiClasses()
+        return DrcLibrary.listUiClasses()
+
+    def setItemModel(self, model):
+        self._propertyItemModel = model
+        for lib in self.loadedLibraries.itervalues():
+            lib.setItemModel(model)
 
     def iterChildren(self):
         return self.loadedLibraries.itervalues()

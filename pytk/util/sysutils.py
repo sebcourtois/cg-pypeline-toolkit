@@ -223,9 +223,15 @@ def deepCopyOf(value):
     else:
         return value
 
+def importModule(sModuleName):
+
+    __import__(sModuleName)
+    modobj = sys.modules.get(sModuleName)
+
+    return modobj
 
 def isClassOfModule(sModuleName, cls):
-    return inspect.isclass(cls) and (cls.__module__ == sModuleName)
+    return inspect.isclass(cls) # and (cls.__module__ == sModuleName)
 
 def listClassesFromModule(sModuleName):
 

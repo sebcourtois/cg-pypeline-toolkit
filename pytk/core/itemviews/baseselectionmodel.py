@@ -27,7 +27,7 @@ class BaseSelectionModel(QtGui.QItemSelectionModel):
 
 
 #    def clearSelection(self):
-#        logMsg(self.__class__.__name__, log='all')
+#        logMsg(log='all')
 #
 #        QtGui.QItemSelectionModel.clearSelection(self)
 #        self.selectedItems = []
@@ -38,7 +38,7 @@ class BaseSelectionModel(QtGui.QItemSelectionModel):
 #        self.selectedItems = []
 
 #    def updateSelection(self, selected, deselected):
-#        logMsg(self.__class__.__name__, log='all')
+#        logMsg(log='all')
 #
 #        curntModel = self.model()
 #

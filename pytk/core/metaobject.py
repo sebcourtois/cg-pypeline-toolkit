@@ -2,6 +2,7 @@
 from pytk.util.logutils import logMsg
 from pytk.util.sysutils import argToTuple
 from pytk.util.sysutils import toStr
+#from pytk.util.sysutils import getCaller
 from pytk.util.strutils import upperFirst
 
 from .metaproperty import BasePropertyFactory
@@ -40,10 +41,11 @@ class MetaObject(object):
             if metaProperty.isReadable():
                 setattr(self, metaProperty.name, metaProperty.read())
 
+
     def metaProperty(self, sProperty):
         return self.__metaProperties.get(sProperty)
 
-    def iterProperties(self, sPropertyList):
+    def iterMetaPrpties(self, sPropertyList):
 
         for sProperty in sPropertyList:
             yield self.metaProperty(sProperty)
@@ -231,7 +233,7 @@ class MetaObject(object):
 
         try:
             sClsName = upperFirst(cls.classLabel) if hasattr(cls, "classLabel") else cls.__name__
-            sRepr = ("{0}('{1}')".format(sClsName, getattr(self, cls.classReprAttr)))
+            sRepr = ("{0}('{1}')".format(sClsName, toStr(getattr(self, cls.classReprAttr))))
         except AttributeError:
             sRepr = cls.__name__
 

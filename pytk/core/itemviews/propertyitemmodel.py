@@ -2,7 +2,8 @@
 from PySide import QtGui
 from PySide.QtCore import Qt
 
-from pytk.util.sysutils import toUnicode
+from pytk.util.logutils import logMsg
+from pytk.util.sysutils import toUnicode, toStr
 from pytk.util.strutils import labelify
 from pytk.util.qtutils import setWaitCursor
 
@@ -34,38 +35,19 @@ class PropertyItem(QtGui.QStandardItem):
     def type(self):
         return QtGui.QStandardItem.UserType + 1
 
-    def isValid(self):
-        return (self._metaprpty is not None)
+    def updateRow(self):
+        logMsg(log='all')
 
-    def iterRowItems(self, row):
+        for siblItem in self.iterSiblingRow(self.row()):
+            if siblItem.isValid():
+                siblItem.updateData()
 
-        for column in xrange(self.model().columnCount()):
-            yield self.child(row, column)
+    def updateData(self):
+        logMsg(log='all')
 
-    def iterSiblings(self):
-
-        parent = self.parent()
-        if not parent:
-            parent = self.model()
-
-        return parent.iterRowItems(self.row())
-
-    def refreshRow(self):
-
-        self._metaobj.refresh()
-
-#         model = self.model()
-
-        for siblItem in self.iterSiblings():
-
-            if not siblItem.isValid():
-                continue
-
-            metaprpty = siblItem._metaprpty
-            siblItem.loadFlags(metaprpty)
-            siblItem.loadData(metaprpty)
-
-#             model.itemChanged.emit(siblItem)
+        metaprpty = self._metaprpty
+        self.loadFlags(metaprpty)
+        self.loadData(metaprpty)
 
     def setupData(self, metaprpty):
 
@@ -76,6 +58,9 @@ class PropertyItem(QtGui.QStandardItem):
 
         self.loadFlags(metaprpty)
         self.loadData(metaprpty)
+
+        if self.column() == 0:
+            metaprpty.viewItems.append(self)
 
     def loadData(self, metaprpty):
 
@@ -102,21 +87,47 @@ class PropertyItem(QtGui.QStandardItem):
 
         self.setFlags(itemFlags)
 
+    def isValid(self):
+        return (self._metaprpty is not None)
+
     def hasChildren(self):
+
         if self.column() > 0:
             return False
-        return self._metaobj.hasChildren() if self._metaobj else False
+
+        if self._metaobj:# and (not self.childrenLoaded):
+            return self._metaobj.hasChildren()
+
+        return QtGui.QStandardItem.hasChildren(self)
 
     @setWaitCursor
     def loadChildren(self):
+        self._metaobj.loadChildren()
 
-        model = self.model()
+    def iterChildItems(self):
 
-        for child in self._metaobj.iterChildren():
-            model.loadRowItems(child, self)
+        column = self.column()
+
+        for row in xrange(self.rowCount()):
+            yield self.child(row, column)
+
+    def iterChildRow(self, row):
+
+        for column in xrange(self.model().columnCount()):
+            yield self.child(row, column)
+
+    def iterSiblingRow(self, row):
+
+        parent = self.parent()
+        if not parent:
+            parent = self.model()
+
+        return parent.iterChildRow(row)
+
 
     def __repr__(self):
-        sRepr = ("{0}('{1}')".format(self.__class__.__name__, self.text()))
+        sClsName = self.__class__.__name__
+        sRepr = ("{}('{}')".format(sClsName, toStr(self.text())))
         return sRepr
 
 class PropertyItemModel(QtGui.QStandardItemModel):
@@ -128,6 +139,8 @@ class PropertyItemModel(QtGui.QStandardItemModel):
         super(PropertyItemModel, self).__init__(parent)
 
         self._metamodel = metamodel
+        metamodel.setItemModel(self)
+
         self.__iconProvider = None
 
         self.loadProperties(metamodel)
@@ -206,6 +219,8 @@ class PropertyItemModel(QtGui.QStandardItemModel):
 
         self.propertiesDct = propertiesDct
         self.uiCategoryDct = uiCategoryDct
+        self.primaryProperty = sPrimePrpty
+
 
     def getPrptiesFromUiCategory(self, categoryKey):
 
@@ -241,7 +256,7 @@ class PropertyItemModel(QtGui.QStandardItemModel):
 
         itemCls = self.__class__.standardItemClass
 
-        metaprpties = metaobj.iterProperties(self.propertyNames)
+        metaprpties = metaobj.iterMetaPrpties(self.propertyNames)
         rowItems = tuple(itemCls(metaprpty) for metaprpty in metaprpties)
         parentItem.appendRow(rowItems)
 
@@ -249,8 +264,9 @@ class PropertyItemModel(QtGui.QStandardItemModel):
             if item.isValid():
                 item.setupData(item._metaprpty)
 
+        return rowItems
 
-    def iterRowItems(self, row):
+    def iterChildRow(self, row):
         for column in xrange(self.columnCount()):
             yield self.item(row, column)
 

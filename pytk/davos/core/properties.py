@@ -102,6 +102,7 @@ class DrcBaseProperty(MetaProperty):
 
     def __init__(self, sProperty, metaobj):
         super(DrcBaseProperty, self).__init__(sProperty, metaobj)
+        self.viewItems = []
 
     def getIconData(self):
         return self._metaobj.getIconData()

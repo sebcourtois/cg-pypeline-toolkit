@@ -77,7 +77,6 @@ class BaseTreeWidget(QtGui.QWidget):
 
     def setupModelData(self, metamodel, **kwargs):
 
-#        bModelTest = kwargs.pop("testModel", False)
         bProxyModel = kwargs.pop("useProxyModel", True)
 
         model = self.__class__.itemModelClass(metamodel, self)
@@ -93,9 +92,6 @@ class BaseTreeWidget(QtGui.QWidget):
 
         else:
             self.setModel(model)
-
-#        if bModelTest:
-#            ModelTest(model, self)
 
         self.dataView.mainCtxMenu = self.__class__.contextMenuClass(self.dataView)
         if self.treeView:

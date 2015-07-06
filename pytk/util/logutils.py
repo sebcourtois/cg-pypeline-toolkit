@@ -16,6 +16,11 @@ invLogSeverityDct = dict((y, x) for (x, y) in logSeverityDct.items())
 #-------------------------------------------------------------------------------
 #    Functions
 #-------------------------------------------------------------------------------
+def setLogLevel(levelId):
+    global logSeverity
+
+    logSeverity = levelId
+
 def getFunctionName():
 
     frame = sys._getframe(3)

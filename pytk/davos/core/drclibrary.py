@@ -1,67 +1,90 @@
 
+from PySide.QtCore import QFileInfo
 
 from pytk.util.logutils import logMsg
 
-from pytk.util.sysutils import listClassesFromModule
+from pytk.util.sysutils import listClassesFromModule, getCaller
 from pytk.util.qtutils import toQFileInfo
 
 from . import drctypes
-from .drctypes import DrcEntry, DrcDir
-from .properties import DrcMetaObject
-from .properties import DrcLibraryProperties
+from .drctypes import DrcEntry, DrcDir, DrcFile
+from pytk.util.fsutils import pathNorm
 
-class DrcLibrary(DrcMetaObject):
+class DrcLibrary(DrcEntry):
 
+    classLabel = "library"
     classReprAttr = "fullName"
     classUiPriority = 0
 
-    propertiesDctItems = DrcLibraryProperties
-    propertiesDct = dict(propertiesDctItems)
-
-    primaryProperty = propertiesDctItems[0][0]
-
     def __init__(self, sLibName, sLibPath, sSpace="", project=None):
-        super(DrcLibrary, self).__init__()
 
         self.loadedEntriesCache = {}
+        self._propertyItemModel = None
 
-        self.name = sLibName
-        self._rootDir = DrcDir(self, sLibPath)
+        self.fullName = DrcLibrary.makeFullName(sSpace, sLibName)
         self.space = sSpace
         self.project = project
-        self.fullName = DrcLibrary.makeFullName(sSpace, sLibName)
 
-        self.loadData(project)
+        super(DrcLibrary, self).__init__(self, sLibPath)
 
-    def loadData(self, project):
-        DrcMetaObject.loadData(self)
+    def loadData(self, fileInfo):
+        logMsg(log="all")
+
+        if self.project:
+            self._propertyItemModel = self.project._propertyItemModel
+
+        super(DrcLibrary, self).loadData(fileInfo)
+        assert self.isDir(), "<{}> No such directory: '{}'".format(self, self.pathname)
 
         self.label = self.fullName
 
-        if project:
-            self.__remember()
+    def setItemModel(self, model):
+        self._propertyItemModel = model
 
-    def refresh(self):
-        self.loadData(self.project)
+    def addModelRow(self):
+
+        model = self._propertyItemModel
+        if model:
+            model.loadRowItems(self, model)
 
     @staticmethod
     def makeFullName(*names):
         return "|".join(names)
 
-    def listUiClasses(self):
+    @staticmethod
+    def listUiClasses():
         return sorted((cls for (_, cls) in listClassesFromModule(drctypes.__name__)
                                 if hasattr(cls, "classUiPriority")), key=lambda c: c.classUiPriority)
 
-    def entry(self, drcPath):
+    def getEntry(self, pathOrInfo):
+        logMsg(log="all")
 
-        fileInfo = toQFileInfo(drcPath)
+        fileInfo = None
+        if isinstance(pathOrInfo, QFileInfo):
+            sEntryPath = pathOrInfo.absoluteFilePath()
+            fileInfo = pathOrInfo
+        elif isinstance(pathOrInfo, basestring):
+            sEntryPath = pathNorm(pathOrInfo)
+        else:
+            raise TypeError(
+                    "argument 'pathOrInfo' must be of type <QFileInfo> or <basestring>. Got {0}."
+                    .format(type(pathOrInfo)))
 
-        drcEntry = self.loadedEntriesCache.get(fileInfo.absoluteFilePath())
+        drcEntry = self.loadedEntriesCache.get(sEntryPath)
         if drcEntry:
-            drcEntry.loadData(fileInfo)
+            drcEntry.loadData(drcEntry._qfileinfo)
             return drcEntry
 
-        return DrcEntry(self, fileInfo)
+        if not fileInfo:
+            fileInfo = toQFileInfo(sEntryPath)
+
+        entryCls = DrcEntry
+        if fileInfo.isDir():
+            entryCls = DrcDir
+        elif fileInfo.isFile():
+            entryCls = DrcFile
+
+        return entryCls(self, fileInfo)
 
     def getHomonym(self, sSpace):
 
@@ -70,35 +93,26 @@ class DrcLibrary(DrcMetaObject):
 
         return self.project.getLibrary(sSpace, self.name)
 
-    def getPath(self):
-        return self._rootDir.pathname
-
     def hasChildren(self):
         return True
 
-    def iterChildren(self):
-        return self._rootDir.iterChildren()
-
-    def getIconData(self):
-        return self._rootDir.getIconData()
-
-    def __remember(self):
+    def _remember(self):
 
         key = self.fullName
         cacheDict = self.project.loadedLibraries
 
         if key in cacheDict:
-            logMsg("Already remembered : {0}.".format(self), log="debug")
+            logMsg("<{}> Already loaded : {}.".format(getCaller(depth=4, fo=False), self), log="debug")
         else:
             cacheDict[key] = self
 
-    def __forget(self):
+    def _forget(self):
 
         key = self.fullName
         cacheDict = self.project.loadedLibraries
 
         if key not in cacheDict:
-            logMsg("Already forgotten : {0}.".format(self), log="debug")
+            logMsg("<{}> Already dumped : {}.".format(getCaller(depth=4, fo=False), self), log="debug")
         else:
             return cacheDict.pop(key)
 

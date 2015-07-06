@@ -33,8 +33,8 @@ class BaseTreeView(QtGui.QTreeView):
         self.setEditTriggers(QtGui.QAbstractItemView.DoubleClicked)
         self.setTextElideMode(Qt.ElideRight)
 
-        #self.setDragDropMode(QtGui.QAbstractItemView.InternalMove)
-        #self.setDropIndicatorShown(True)
+#        self.setDragDropMode(QtGui.QAbstractItemView.InternalMove)
+#        self.setDropIndicatorShown(True)
 
 #        self.clicked.connect(self.onItemClicked)
 #
