@@ -15,6 +15,8 @@ class project:
         "output_lib",
         )
 
+    authenticator = "zombie.shotgunauth.ShotgunAuth"
+
 
 class asset_lib:
 

@@ -10,7 +10,6 @@ from pytk.davos.gui.assetbrowserwidget import AssetBrowserWidget
 # from pytk.core.itemviews.basetreeview import BaseTreeView
 
 
-
 if __name__ == "__main__":
 
     app = QtGui.QApplication(sys.argv)
@@ -20,13 +19,12 @@ if __name__ == "__main__":
 
     view = AssetBrowserWidget()
 
-    proj = DamProject("zombillenium")
-
-    proj.init()
+    proj = DamProject("zombillenium", empty=True)
 
     view.setupModelData(proj)
     view.show()
 
+    # proj.init()
     proj.loadLibraries()
 
     sys.exit(app.exec_())

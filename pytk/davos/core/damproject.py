@@ -1,6 +1,5 @@
 
 
-from pytk.core.dialogs import loginDialog
 
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
@@ -44,79 +43,63 @@ class DamProject(object):
         if kwargs.pop("empty", False):
             return proj
 
-        try:
-            proj.__confobj = PyConfParser(getConfigModule(sProjectName))
-        except ImportError, msg:
-            if kwargs.pop("warn", True):
-                logMsg(msg , warning=True)
+        if not proj.init():
             return None
 
-        # proj.cookieFilePath = pathJoin(proj.getPath(space="local"), "damas.lwp")
         return proj
 
     def reset(self):
         logMsg(log='all')
 
         self._damas = None
-        self._shotgun = None
+        self._authobj = None
         self.authenticated = False
 
         self._propertyItemModel = None
         self.loadedLibraries = {}
+
+    def getAuthenticator(self):
+
+        sAuthFullName = self.getVar("project", "authenticator",
+                                    "pytk.core.authenticator.Authenticator")
+        sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
+        exec("from {} import {}".format(sAuthMod, sAuthClass))
+
+        return eval(sAuthClass)()
+
+    def isAuthenticated(self):
+
+        if not self._authobj:
+            return False
+
+        bAuth = self._authobj.authenticated
+
+        if not bAuth:
+            logMsg("The project is not authenticated.", warning=True)
+
+        return bAuth
 
     def init(self, **kwargs):
         logMsg(log='all')
 
         self.reset()
 
-        if self._shotgun:
-            self.authenticate()
+        try:
+            self.__confobj = PyConfParser(getConfigModule(self.name))
+        except ImportError, msg:
+            if kwargs.pop("warn", True):
+                logMsg(msg , warning=True)
+            return None
+
+        auth = self.getAuthenticator()
+        userData = auth.authenticate()
 
         if not self.isAuthenticated():
             return False
 
-        self.loadLibraries()
+        self._authobj = auth
 
         return True
-
-    def getLoggedUser(self, *args, **kwargs):
-        self._shotgun.getLoggedUser(*args, **kwargs)
-        return {}
-
-    def login(self, *args, **kwargs):
-        self._shotgun.loginUser(*args, **kwargs)
-        return {}
-
-    def logout(self, *args, **kwargs):
-        self._shotgun.logoutUser(*args, **kwargs)
-        self.reset()
-        logMsg("Signed out !" , warning=True)
-
-    def authenticate(self, **kwargs):
-
-        if kwargs.get('relog', False):
-            self.logout()
-
-        userData = self.getLoggedUser()
-        if userData:
-            # logMsg( "Already authenticated", log = 'info' )
-            self.authenticated = True
-
-        if not self.authenticated:
-            userData = loginDialog(loginFunc=self.login)
-
-        if self.authenticated:
-            pass
-            # should initiate user class
-
-        return True
-
-    def isAuthenticated(self):
-        if self.authenticated:
-            return True
-        else:
-            logMsg("The project is not authenticated.", warning=True)
-            return False
 
     def loadLibraries(self):
 
@@ -137,7 +120,7 @@ class DamProject(object):
         return drcLib
 
     def getVar(self, sSection, sVarName, default="NoEntry", **kwargs):
-        return self.__confobj.getVar(sSection, sVarName, default="NoEntry", **kwargs)
+        return self.__confobj.getVar(sSection, sVarName, default=default, **kwargs)
 
     def getRcPath(self, sSpace, sLibName, sRcVar="NoEntry"):
 
