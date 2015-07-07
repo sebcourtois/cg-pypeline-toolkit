@@ -1,4 +1,7 @@
 
+
+from pytk.core.dialogs import loginDialog
+
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
 from pytk.util.fsutils import pathJoin, pathResolve
@@ -49,17 +52,71 @@ class DamProject(object):
             return None
 
         # proj.cookieFilePath = pathJoin(proj.getPath(space="local"), "damas.lwp")
-
         return proj
 
     def reset(self):
         logMsg(log='all')
 
-        self.damas = None
+        self._damas = None
+        self._shotgun = None
         self.authenticated = False
 
         self._propertyItemModel = None
         self.loadedLibraries = {}
+
+    def init(self, **kwargs):
+        logMsg(log='all')
+
+        self.reset()
+
+        if self._shotgun:
+            self.authenticate()
+
+        if not self.isAuthenticated():
+            return False
+
+        self.loadLibraries()
+
+        return True
+
+    def getLoggedUser(self, *args, **kwargs):
+        self._shotgun.getLoggedUser(*args, **kwargs)
+        return {}
+
+    def login(self, *args, **kwargs):
+        self._shotgun.loginUser(*args, **kwargs)
+        return {}
+
+    def logout(self, *args, **kwargs):
+        self._shotgun.logoutUser(*args, **kwargs)
+        self.reset()
+        logMsg("Signed out !" , warning=True)
+
+    def authenticate(self, **kwargs):
+
+        if kwargs.get('relog', False):
+            self.logout()
+
+        userData = self.getLoggedUser()
+        if userData:
+            # logMsg( "Already authenticated", log = 'info' )
+            self.authenticated = True
+
+        if not self.authenticated:
+            userData = loginDialog(loginFunc=self.login)
+
+        if self.authenticated:
+            pass
+            # should initiate user class
+
+        return True
+
+    def isAuthenticated(self):
+        if self.authenticated:
+            return True
+        else:
+            logMsg("The project is not authenticated.", warning=True)
+            return False
 
     def loadLibraries(self):
 
@@ -107,5 +164,8 @@ class DamProject(object):
 
 
 
+class DamUser(object):
 
+    def __init__(self, project):
+        pass
 

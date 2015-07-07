@@ -51,12 +51,12 @@ class DrcEntry(DrcMetaObject):
             self._qdir.refresh()
         else:
             self._qfileinfo = fileInfo
-            self.pathname = fileInfo.absoluteFilePath()
+            sAbsPath = fileInfo.absoluteFilePath()
 
-            self._qdir = QDir(self.pathname)
+            self._qdir = QDir(sAbsPath)
             self._qdir.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot | QDir.AllDirs)
 
-        DrcMetaObject.loadData(self)
+        super(DrcEntry, self).loadData()
 
         sEntryName = self.name
         self.baseName, self.suffix = os.path.splitext(sEntryName)
@@ -154,12 +154,15 @@ class DrcEntry(DrcMetaObject):
     def hasChildren(self):
         return False
 
+    def pathname(self):
+        return self._qfileinfo.absoluteFilePath()
+
     def getIconData(self):
         return self._qfileinfo
 
     def _remember(self):
 
-        key = self.pathname
+        key = self.pathname()
         loadedEntriesCache = self.library.loadedEntriesCache
 
         if key in loadedEntriesCache:
@@ -169,7 +172,7 @@ class DrcEntry(DrcMetaObject):
 
     def __forgetOne(self):
 
-        key = self.pathname
+        key = self.pathname()
         loadedEntriesCache = self.library.loadedEntriesCache
 
         if key not in loadedEntriesCache:
@@ -199,13 +202,12 @@ class DrcEntry(DrcMetaObject):
             s = "'{}' object has no attribute '{}'".format(type(self).__name__, sAttrName)
             raise AttributeError(s)
 
-
     def __cmp__(self, other):
 
         if not isinstance(other, self.__class__):
             return cmp(1 , None)
 
-        return cmp(self.pathname , other.pathname)
+        return cmp(self.pathname() , other.pathname())
 
 class DrcDir(DrcEntry):
 
@@ -230,7 +232,7 @@ class DrcFile(DrcEntry):
 
     def makePrivateCopy(self, **kwargs):
 
-        sPubFilePath = self.pathname
+        sPubFilePath = self.pathname()
 
         assert self.isFile(), "No such file: '{0}'".format(sPubFilePath)
         assert self.isPublic(), "File is not public: '{0}'".format(sPubFilePath)
@@ -241,8 +243,8 @@ class DrcFile(DrcEntry):
         pubLib = self.library
         privLib = pubLib.getHomonym("private")
 
-        sPubLibPath = pubLib.getPath()
-        sPrivLibPath = privLib.getPath()
+        sPubLibPath = pubLib.pathname()
+        sPrivLibPath = privLib.pathname()
 
         sPrivDirPath = re.sub("^" + sPubLibPath, sPrivLibPath, sPubDirPath)
 
@@ -252,7 +254,7 @@ class DrcFile(DrcEntry):
         sVersion = 'v{:03d}'.format(0)
         sWipNum = 'w{:03d}'.format(0)
 
-        sPrivFilenameWithExt = ".".join((sPubFilename, sVersion, sWipNum)) + sExt
+        sPrivFilenameWithExt = "-".join((sPubFilename, sVersion, sWipNum)) + sExt
 
         # at this point, file path is fully converted
         sPrivFilePath = pathJoin(sPrivDirPath, sPrivFilenameWithExt)
@@ -308,4 +310,5 @@ You have {0} version of '{1}':
             logMsg('\nCopied "{0}" \n\t to: "{1}"'.format(sPubFilePath, sPrivFilePath))
 
         return sPrivFilePath
+
 

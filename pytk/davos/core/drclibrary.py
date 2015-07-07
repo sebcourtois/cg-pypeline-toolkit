@@ -21,6 +21,7 @@ class DrcLibrary(DrcEntry):
         self.loadedEntriesCache = {}
         self._propertyItemModel = None
 
+        self.libName = sLibName
         self.fullName = DrcLibrary.makeFullName(sSpace, sLibName)
         self.space = sSpace
         self.project = project
@@ -34,7 +35,7 @@ class DrcLibrary(DrcEntry):
             self._propertyItemModel = self.project._propertyItemModel
 
         super(DrcLibrary, self).loadData(fileInfo)
-        assert self.isDir(), "<{}> No such directory: '{}'".format(self, self.pathname)
+        assert self.isDir(), "<{}> No such directory: '{}'".format(self, self.pathname())
 
         self.label = self.fullName
 
@@ -91,7 +92,7 @@ class DrcLibrary(DrcEntry):
         if self.space == sSpace:
             return None
 
-        return self.project.getLibrary(sSpace, self.name)
+        return self.project.getLibrary(sSpace, self.libName)
 
     def hasChildren(self):
         return True

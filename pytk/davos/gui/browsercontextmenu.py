@@ -1,7 +1,7 @@
 
 
 from pytk.core.itemviews.basecontextmenu import BaseContextMenu
-#from pytk.util.logutils import forceLog
+# from pytk.util.logutils import forceLog
 
 class BrowserContextMenu(BaseContextMenu):
 
@@ -38,11 +38,11 @@ class BrowserContextMenu(BaseContextMenu):
     def editFile(self, *itemList):
 
         drcFile = itemList[-1]._metaobj
-        drcFile.makePrivateCopy(dry_run=True)
+        drcFile.makePrivateCopy(dry_run=False)
 
     editFile.auth_types = ("DrcFile",)
 
-    #@forceLog(log='all')
+    # @forceLog(log='all')
     def refreshItems(self, *itemList, **kwargs):
 
         for item in itemList:

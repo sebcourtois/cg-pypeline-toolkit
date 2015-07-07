@@ -1,5 +1,5 @@
 
-
+from functools import partial
 
 from PySide import QtGui
 from PySide import QtCore
@@ -7,6 +7,7 @@ Qt = QtCore.Qt
 
 from pytk.util.sysutils import toUnicode
 
+from .ui.login_dialog import Ui_LoginDialog
 
 class ConfirmDialog(QtGui.QMessageBox):
 
@@ -264,3 +265,52 @@ def promptDialog(**kwargs):
         if not result:
             result = dismiss
         return result
+
+
+class LoginDialog(QtGui.QDialog, Ui_LoginDialog):
+
+    loginSubmitted = QtCore.Signal(unicode, unicode)
+
+    __resultData = None
+
+    def __init__(self, submitSlot=None, parent=None):
+        super(LoginDialog , self).__init__(parent)
+
+        self.setupUi(self)
+
+        self.password_lineEdit.setEchoMode(QtGui.QLineEdit.Password)
+        self.connexion_btn.clicked.connect(self.submitLogin)
+        self.submitSlot = submitSlot
+
+    def getUsername(self):
+        return self.username_lineEdit.text()
+
+    def getPassword(self):
+        return self.password_lineEdit.text()
+
+    def submitLogin(self):
+
+        sUser, sPwd = (self.getUsername(), self.getPassword())
+
+        res = None
+        if self.submitSlot:
+            res = self.submitSlot(sUser, sPwd)
+        elif sUser and sPwd:
+            res = (sUser, sPwd)
+
+        if res:
+            self.__class__.__resultData = res
+            self.accept()
+
+    @classmethod
+    def resultData(cls):
+        data = cls.__resultData
+        cls.__resultData = None
+        return data
+
+def loginDialog(loginFunc=None):
+
+    loginDlg = LoginDialog(submitSlot=loginFunc)
+    loginDlg.exec_()
+
+    return LoginDialog.resultData()

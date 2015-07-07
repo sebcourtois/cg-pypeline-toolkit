@@ -22,6 +22,8 @@ if __name__ == "__main__":
 
     proj = DamProject("zombillenium")
 
+    proj.init()
+
     view.setupModelData(proj)
     view.show()
 
