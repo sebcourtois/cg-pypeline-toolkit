@@ -68,7 +68,7 @@ class DrcEntry(DrcMetaObject):
 
     def addModelRow(self, parent):
 
-        model = self.library._propertyItemModel
+        model = self.library._itemmodel
         if not model:
             return
 
@@ -79,7 +79,7 @@ class DrcEntry(DrcMetaObject):
 
     def delModelRow(self):
 
-        model = self.library._propertyItemModel
+        model = self.library._itemmodel
         primePrpty = self.metaProperty(model.primaryProperty)
 
         for primeItem in primePrpty.viewItems:
@@ -92,7 +92,7 @@ class DrcEntry(DrcMetaObject):
     def updateModelRow(self):
         logMsg(log='all')
 
-        model = self.library._propertyItemModel
+        model = self.library._itemmodel
         if not model:
             return
 

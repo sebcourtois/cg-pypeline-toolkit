@@ -1,5 +1,6 @@
 
 
+from pytk.core.authenticator import Authenticator
 
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
@@ -55,22 +56,21 @@ class DamProject(object):
         self._authobj = None
         self.authenticated = False
 
-        self._propertyItemModel = None
+        self._itemmodel = None
         self.loadedLibraries = {}
 
     def getAuthenticator(self):
 
-        sAuthFullName = self.getVar("project", "authenticator",
-                                    "pytk.core.authenticator.Authenticator")
-        sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
-        exec("from {} import {}".format(sAuthMod, sAuthClass))
+        sAuthFullName = self.getVar("project", "authenticator", "")
+        if not sAuthFullName:
+            return Authenticator()
+        else:
+            sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
+            exec("from {} import {}".format(sAuthMod, sAuthClass))
 
-        return eval(sAuthClass)()
+            return eval(sAuthClass)()
 
     def isAuthenticated(self):
-
-        if not self._authobj:
-            return False
 
         bAuth = self._authobj.authenticated
 
@@ -91,13 +91,12 @@ class DamProject(object):
                 logMsg(msg , warning=True)
             return None
 
-        auth = self.getAuthenticator()
-        userData = auth.authenticate()
+        self._authobj = self.getAuthenticator()
+        userData = self._authobj.authenticate()
+        print userData
 
         if not self.isAuthenticated():
             return False
-
-        self._authobj = auth
 
         return True
 
@@ -122,7 +121,7 @@ class DamProject(object):
     def getVar(self, sSection, sVarName, default="NoEntry", **kwargs):
         return self.__confobj.getVar(sSection, sVarName, default=default, **kwargs)
 
-    def getRcPath(self, sSpace, sLibName, sRcVar="NoEntry"):
+    def getPath(self, sSpace, sLibName, sRcVar="NoEntry"):
 
         sRcPath = self.getVar(sLibName, sSpace + "_path")
         if sRcVar != "NoEntry":
@@ -134,7 +133,7 @@ class DamProject(object):
         return DrcLibrary.listUiClasses()
 
     def setItemModel(self, model):
-        self._propertyItemModel = model
+        self._itemmodel = model
         for lib in self.loadedLibraries.itervalues():
             lib.setItemModel(model)
 
@@ -143,8 +142,6 @@ class DamProject(object):
 
     def editFile(self, drcFile):
         pass
-
-
 
 
 class DamUser(object):

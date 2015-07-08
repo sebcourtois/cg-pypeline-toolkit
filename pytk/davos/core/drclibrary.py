@@ -19,7 +19,7 @@ class DrcLibrary(DrcEntry):
     def __init__(self, sLibName, sLibPath, sSpace="", project=None):
 
         self.loadedEntriesCache = {}
-        self._propertyItemModel = None
+        self._itemmodel = None
 
         self.libName = sLibName
         self.fullName = DrcLibrary.makeFullName(sSpace, sLibName)
@@ -32,7 +32,7 @@ class DrcLibrary(DrcEntry):
         logMsg(log="all")
 
         if self.project:
-            self._propertyItemModel = self.project._propertyItemModel
+            self._itemmodel = self.project._itemmodel
 
         super(DrcLibrary, self).loadData(fileInfo)
         assert self.isDir(), "<{}> No such directory: '{}'".format(self, self.pathname())
@@ -40,11 +40,11 @@ class DrcLibrary(DrcEntry):
         self.label = self.fullName
 
     def setItemModel(self, model):
-        self._propertyItemModel = model
+        self._itemmodel = model
 
     def addModelRow(self):
 
-        model = self._propertyItemModel
+        model = self._itemmodel
         if model:
             model.loadRowItems(self, model)
 

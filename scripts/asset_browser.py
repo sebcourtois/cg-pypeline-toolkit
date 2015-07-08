@@ -19,12 +19,11 @@ if __name__ == "__main__":
 
     view = AssetBrowserWidget()
 
-    proj = DamProject("zombillenium", empty=True)
+    proj = DamProject("zombillenium")
 
     view.setupModelData(proj)
     view.show()
 
-    # proj.init()
     proj.loadLibraries()
 
     sys.exit(app.exec_())
