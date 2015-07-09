@@ -140,7 +140,13 @@ class PyConfParser(object):
             self.__sections[sSection] = PyConfParser(sectionCls)
 
     def getSection(self, sSectionName):
-        return self.__sections[sSectionName]
+
+        sections = self.__sections
+        try:
+            return sections[sSectionName]
+        except KeyError:
+            msg = "<{}> No such section: '{}'. \n\n\tExpected values: {}".format(self, sSectionName, sections.keys())
+            raise KeyError(msg)
 
     def formatedErrors(self, sErrorList):
         return 'Failed initializing {0}: \n\t{1}'.format(self, "\n\t".join(sErrorList))

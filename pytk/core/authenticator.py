@@ -1,5 +1,11 @@
 
+from getpass import getpass
+
+from pytk.util.sysutils import isQtApp
 from .dialogs import loginDialog
+
+_QT_APP = isQtApp()
+
 
 class Authenticator(object):
 
@@ -21,11 +27,19 @@ class Authenticator(object):
             self.logout()
 
         userData = self.loggedUser()
-        if userData:
-            # logMsg( "Already authenticated", log = 'info' )
-            self.authenticated = True
+        if not userData:
 
-        if not self.authenticated:
-            userData = loginDialog(loginFunc=self.login)
+            if _QT_APP:
+                userData = loginDialog(loginFunc=self.login)
+            else:
+                for _ in xrange(2):
+                    sUser = raw_input("login:")
+                    sPwd = getpass()
+                    userData = self.login(sUser, sPwd)
+                    if userData:
+                        break
+
+        if userData:
+            self.authenticated = True
 
         return userData

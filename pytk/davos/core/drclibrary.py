@@ -5,10 +5,11 @@ from pytk.util.logutils import logMsg
 
 from pytk.util.sysutils import listClassesFromModule, getCaller
 from pytk.util.qtutils import toQFileInfo
+from pytk.util.fsutils import pathNorm
 
 from . import drctypes
 from .drctypes import DrcEntry, DrcDir, DrcFile
-from pytk.util.fsutils import pathNorm
+
 
 class DrcLibrary(DrcEntry):
 
@@ -74,16 +75,17 @@ class DrcLibrary(DrcEntry):
         drcEntry = self.loadedEntriesCache.get(sEntryPath)
         if drcEntry:
             drcEntry.loadData(drcEntry._qfileinfo)
-            return drcEntry
+            return drcEntry if drcEntry.exists() else None
 
         if not fileInfo:
             fileInfo = toQFileInfo(sEntryPath)
 
-        entryCls = DrcEntry
         if fileInfo.isDir():
             entryCls = DrcDir
         elif fileInfo.isFile():
             entryCls = DrcFile
+        else:
+            return None
 
         return entryCls(self, fileInfo)
 
@@ -97,7 +99,15 @@ class DrcLibrary(DrcEntry):
     def hasChildren(self):
         return True
 
+    def suppress(self):
+        raise RuntimeError("You cannot delete a library !!")
+
+    def sendToTrash(self):
+        raise RuntimeError("You cannot delete a library !!")
+
     def _remember(self):
+
+        DrcEntry._remember(self)
 
         key = self.fullName
         cacheDict = self.project.loadedLibraries
@@ -107,13 +117,15 @@ class DrcLibrary(DrcEntry):
         else:
             cacheDict[key] = self
 
-    def _forget(self):
+    def _forget(self, parent=None):
+
+        DrcEntry._forget(self, parent)
 
         key = self.fullName
         cacheDict = self.project.loadedLibraries
 
         if key not in cacheDict:
-            logMsg("<{}> Already dumped : {}.".format(getCaller(depth=4, fo=False), self), log="debug")
+            logMsg("<{}> Already dropped : {}.".format(getCaller(depth=4, fo=False), self), log="debug")
         else:
             return cacheDict.pop(key)
 

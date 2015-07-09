@@ -1,4 +1,11 @@
 
+import re
+
+
+
+_iterativePartRgx = re.compile('_\d+_(?=\D)|\d+$')
+_trailingNumRgx = re.compile('([0-9]+)$')
+_interBracketsRgx = re.compile(r'{([^{}]*?)}')
 
 #-------------------------------------------------------------------------------
 # strings manipulation utilities
@@ -67,7 +74,7 @@ def wordSplit(s, digits=False):
             state = 0
             ci += 1  # eat ci
             si = ci
-        #print(' : ', c, bin(state))
+        # print(' : ', c, bin(state))
     if state:
         yield s[si:ci]
 
@@ -87,5 +94,42 @@ def camelJoin(iterable):
         return iterable
 
     return "".join((upperFirst(w) if i > 0 else w.lower() for i, w in enumerate(iterable)))
+
+
+def findFields(s):
+    return _interBracketsRgx.findall(s)
+
+def padded(i, padding=3):
+    return "{0:0{1}d}".format(i, padding)
+
+def getNumPart(in_sName, **kwargs):
+
+    bAsStr = kwargs.get("asString", False)
+    sPart = kwargs.get("part", "iterative")
+
+    if sPart == "trailing":
+        rgx = _trailingNumRgx
+    elif sPart == "iterative":
+        rgx = _iterativePartRgx
+    else:
+        raise ValueError, 'Invalid value for "part" kwarg : "{0}". Must be "iterative" or "trailing".'.format(sPart)
+
+    try:
+        sIter = rgx.findall(in_sName)[-1]
+    except IndexError:
+        return '' if bAsStr else 0
+
+    sIter = sIter.strip('_')
+
+    if bAsStr:
+        return sIter
+    else:
+        return int(sIter)
+
+def getIteration(in_sName, **kwargs):
+    return getNumPart(in_sName, part="iterative", **kwargs)
+
+def getTrailingNum(in_sName, **kwargs):
+    return getNumPart(in_sName, part="trailing", **kwargs)
 
 

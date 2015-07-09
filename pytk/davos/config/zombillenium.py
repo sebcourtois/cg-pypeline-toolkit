@@ -17,7 +17,6 @@ class project:
 
     authenticator = "zombie.shotgunauth.ShotgunAuth"
 
-
 class asset_lib:
 
     dir_name = "asset"

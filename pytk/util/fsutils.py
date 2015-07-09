@@ -6,11 +6,12 @@ import re
 import fnmatch
 import json
 import stat
+import hashlib
 
 from distutils import file_util
 
 from .sysutils import toUnicode, argToList
-
+from .strutils import getIteration, padded
 
 def isDirStat(statobj):
     return stat.S_ISDIR(statobj.st_mode)
@@ -59,7 +60,7 @@ def iterPaths(sRootDirPath, **kwargs):
     for sDirPath, sDirNames, sFileNames in os.walk(sRootDirPath):
 
         if not bRecursive:
-            del sDirNames[:] #don't walk further
+            del sDirNames[:] # don't walk further
 
         if ignoreDirsFunc is not None:
             sIgnoredDirs = ignoreDirsFunc(sDirPath, sDirNames)
@@ -113,7 +114,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
     if sEncryptExtList:
         raise NotImplementedError, "Sorry, feature has been removed."
-        #import cryptUtil
+        # import cryptUtil
         sEncryptExtList = list(e.strip(".") for e in sEncryptExtList)
 
     sSrcRootDir = addTrailingSlash(pathNorm(in_sSrcRootDir))
@@ -184,12 +185,12 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
         print '{0} files to copy from "{1}" to "{2}":'.format(iNumFiles, sSrcRootDir, sDestRootDir)
 
-        #creating directories
+        # creating directories
         for sDestDir in sorted(set(sDestDirList)):
             if (not osp.isdir(sDestDir)) and (not bDryRun):
                 os.makedirs(sDestDir)
 
-        #copying files
+        # copying files
         if sReplaceExtDct:
 
             for sFilePath, sDestDir in zip(sFilePathList, sDestDirList):
@@ -203,7 +204,7 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
                 bCopied = True
                 if sExt in sEncryptExtList:
-                    pass#bCopied = cryptUtil.encryptFile(sFilePath, sDestPath, **kwargs)
+                    pass# bCopied = cryptUtil.encryptFile(sFilePath, sDestPath, **kwargs)
                 else:
                     sDestPath, bCopied = copyFile(sFilePath, sDestPath, **kwargs)
 
@@ -215,13 +216,13 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
                 sExt = osp.splitext(sFilePath)[1].strip(".")
 
-                #print "\t{0} >> {1}".format( srcRootDirRexp.split( sFilePath, 1 )[1], destRootDirRexp.split( sDestDir, 1 )[1] )
+                # print "\t{0} >> {1}".format( srcRootDirRexp.split( sFilePath, 1 )[1], destRootDirRexp.split( sDestDir, 1 )[1] )
 
                 sDestPath = pathJoin(sDestDir, osp.basename(sFilePath))
 
                 bCopied = True
                 if sExt in sEncryptExtList:
-                    pass#bCopied = cryptUtil.encryptFile(sFilePath, sDestPath, **kwargs)
+                    pass# bCopied = cryptUtil.encryptFile(sFilePath, sDestPath, **kwargs)
                 else:
                     _, bCopied = copyFile(sFilePath, sDestPath, **kwargs)
 
@@ -239,11 +240,75 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
     return sCopiedFileList
 
-def jsonWrite(sFile, obj, **kwargs):
+def jsonWrite(sFile, pyobj, **kwargs):
     with open(sFile, mode='wb') as fp:
-        json.dump(obj, fp, indent=2, encoding='utf-8', **kwargs)
+        json.dump(pyobj, fp, indent=2, encoding='utf-8', **kwargs)
 
 def jsonRead(sFile):
     with open(sFile, 'rb') as fp:
-        obj = json.load(fp, encoding='utf-8')
-    return obj
+        pyobj = json.load(fp, encoding='utf-8')
+    return pyobj
+
+def sha1HashFile(sFilePath, chunk_size=1024 * 8):
+
+    with open(sFilePath, "rb") as fp:
+
+        h = hashlib.sha1()
+
+        while True:
+
+            chunk = fp.read(chunk_size)
+            if not chunk:
+                break
+
+            h.update(chunk)
+
+    return h.hexdigest()
+
+
+def getLatestFile(sPath):
+
+    lastModifTime = 0
+    sLatestFile = ""
+
+    for sItem in os.listdir(sPath):
+
+        sItemPath = pathJoin(sPath, sItem)
+
+        if osp.isdir(sItem):
+            continue
+
+        modifTime = osp.getmtime(sItemPath)
+
+        if modifTime > lastModifTime:
+            lastModifTime = modifTime
+            sLatestFile = sItem
+
+    return sLatestFile
+
+def backupFile(sFilePath):
+
+    if not osp.isfile(sFilePath):
+        raise ValueError, "Path does not lead to a file : '{0}' .".format(sFilePath)
+
+    sRootPath, sExt = osp.splitext(sFilePath)
+    sBackupDirPath = sRootPath + "_backups"
+
+    if not osp.exists(sBackupDirPath):
+        os.mkdir(sBackupDirPath)
+        i = 0
+        print "Created backup directory: '{0}'".format(sBackupDirPath)
+    else:
+        sLatestFile = getLatestFile(sBackupDirPath)
+        i = getIteration(osp.splitext(sLatestFile)[0])
+
+    sFileName = osp.basename(sRootPath)
+    sBackupRootPath = pathJoin(sBackupDirPath, sFileName)
+
+    sBackupFilePath = sBackupRootPath + "-" + padded(i, 3) + sExt
+    while osp.exists(sBackupFilePath):
+        i += 1
+        sBackupFilePath = sBackupRootPath + "-" + padded(i, 3) + sExt
+
+    copyFile(sFilePath, sBackupFilePath)
+    print "Backed up : '{0}'\n\tTo : '{1}'".format(sFilePath, sBackupFilePath)

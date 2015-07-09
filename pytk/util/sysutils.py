@@ -236,3 +236,12 @@ def isClassOfModule(sModuleName, cls):
 def listClassesFromModule(sModuleName):
 
     return inspect.getmembers(sys.modules[sModuleName], partial(isClassOfModule, sModuleName))
+
+def isQtApp():
+
+    try:
+        from PySide import QtGui
+    except ImportError:
+        return False
+    else:
+        return (QtGui.qApp is not None)

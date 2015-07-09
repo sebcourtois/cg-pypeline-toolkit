@@ -1,20 +1,15 @@
 
-
 from pytk.core.authenticator import Authenticator
 
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
 from pytk.util.fsutils import pathJoin, pathResolve
 from pytk.util.sysutils import importModule
+from pytk.util.strutils import findFields
 
 from .drclibrary import DrcLibrary
 
-
-BUDDY_SPACES = {
-"public":"private",
-"private":"public",
-}
-
+LIBRARY_SPACES = ("public", "private")
 
 def getConfigModule(sProjectName):
 
@@ -56,28 +51,10 @@ class DamProject(object):
         self._authobj = None
         self.authenticated = False
 
+        self.__loggedUser = None
+
         self._itemmodel = None
         self.loadedLibraries = {}
-
-    def getAuthenticator(self):
-
-        sAuthFullName = self.getVar("project", "authenticator", "")
-        if not sAuthFullName:
-            return Authenticator()
-        else:
-            sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
-            exec("from {} import {}".format(sAuthMod, sAuthClass))
-
-            return eval(sAuthClass)()
-
-    def isAuthenticated(self):
-
-        bAuth = self._authobj.authenticated
-
-        if not bAuth:
-            logMsg("The project is not authenticated.", warning=True)
-
-        return bAuth
 
     def init(self, **kwargs):
         logMsg(log='all')
@@ -91,46 +68,116 @@ class DamProject(object):
                 logMsg(msg , warning=True)
             return None
 
+        self.__confLibraries = self.getVar("project", "libraries")
+
+        return self.authenticate(**kwargs)
+
+    def getAuthenticator(self):
+
+        sAuthFullName = self.getVar("project", "authenticator", "")
+        if not sAuthFullName:
+            return Authenticator()
+        else:
+            sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
+            exec("from {} import {}".format(sAuthMod, sAuthClass))
+
+            return eval(sAuthClass)()
+
+    def authenticate(self):
+
         self._authobj = self.getAuthenticator()
         userData = self._authobj.authenticate()
-        print userData
 
         if not self.isAuthenticated():
             return False
 
+        self.__loggedUser = DamUser(self, userData)
+
         return True
+
+    def isAuthenticated(self):
+
+        bAuth = self._authobj.authenticated
+
+        if not bAuth:
+            logMsg("The project is not authenticated.", warning=True)
+
+        return bAuth
+
+    def getLoggedUser(self, **kwargs):
+        logMsg(log='all')
+
+        bForce = kwargs.get("force", False)
+
+        if bForce and not self.isAuthenticated():
+            self.authenticate(relog=True)
+
+        return self.__loggedUser
+
+    def _iterConfigLibraries(self, fullName=False):
+
+        for sLibName in self.__confLibraries:
+            for sSpace in LIBRARY_SPACES:
+                if fullName:
+                    yield DrcLibrary.makeFullName(sSpace, sLibName)
+                else:
+                    yield (sSpace, sLibName)
 
     def loadLibraries(self):
 
-        for sLibName in self.getVar("project", "libraries"):
-            for sSpace in ("public", "private"):
-                self.getLibrary(sSpace, sLibName)
+        for sSpace, sLibName in self._iterConfigLibraries():
+            self.getLibrary(sSpace, sLibName)
 
     def getLibrary(self, sSpace, sLibName):
 
-        sFullName = DrcLibrary.makeFullName(sSpace, sLibName)
-        drcLib = self.loadedLibraries.get(sFullName, None)
+        sFullLibName = DrcLibrary.makeFullName(sSpace, sLibName)
+        drcLib = self.loadedLibraries.get(sFullLibName, None)
 
         if not drcLib:
             sLibPath = pathResolve(self.getVar(sLibName, sSpace + "_path"))
-            lib = DrcLibrary(sLibName, sLibPath, sSpace, self)
-            lib.addModelRow()
+            drcLib = DrcLibrary(sLibName, sLibPath, sSpace, self)
+            drcLib.addModelRow()
 
         return drcLib
 
     def getVar(self, sSection, sVarName, default="NoEntry", **kwargs):
         return self.__confobj.getVar(sSection, sVarName, default=default, **kwargs)
 
-    def getPath(self, sSpace, sLibName, sRcVar="NoEntry"):
+    def getPath(self, sSpace, sLibName, pathVar="", tokens=None):
+
+        self._assertSpaceAndLibName(sSpace, sLibName)
 
         sRcPath = self.getVar(sLibName, sSpace + "_path")
-        if sRcVar != "NoEntry":
-            return pathJoin(sRcPath, self.getVar(sLibName, sRcVar))
+        if pathVar:
+            sRcPath = pathJoin(sRcPath, self.getVar(sLibName, pathVar))
+
+        sRcPath = pathResolve(sRcPath)
+
+        if tokens is not None:
+
+            fields = findFields(sRcPath)
+            rest = set(fields) - set(tokens.iterkeys())
+            if rest:
+                msg = ("Cannot resolve path: '{}'. \n\tMissing tokens: {}"
+                        .format(sRcPath, list(rest)))
+                raise AssertionError(msg)
+
+            return sRcPath.format(**tokens)
 
         return sRcPath
 
     def listUiClasses(self):
         return DrcLibrary.listUiClasses()
+
+    def _assertSpaceAndLibName(self, sSpace, sLibName):
+
+        if sSpace not in LIBRARY_SPACES:
+            raise ValueError, "No such space: '{}'. Expected: {}".format(sSpace, LIBRARY_SPACES)
+
+        if sLibName not in self.__confLibraries:
+            msg = ("No such library: '{}'. \n\n\tKnown libraries: {}"
+                   .format(sLibName, self.__confLibraries))
+            raise ValueError(msg)
 
     def setItemModel(self, model):
         self._itemmodel = model
@@ -146,6 +193,8 @@ class DamProject(object):
 
 class DamUser(object):
 
-    def __init__(self, project):
-        pass
+    def __init__(self, project, userData):
+
+        self.name = userData.get("name", "")
+        self.loginName = userData.get("login", "")
 
