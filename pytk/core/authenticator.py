@@ -4,8 +4,6 @@ from getpass import getpass
 from pytk.util.sysutils import isQtApp
 from .dialogs import loginDialog
 
-_QT_APP = isQtApp()
-
 
 class Authenticator(object):
 
@@ -29,7 +27,7 @@ class Authenticator(object):
         userData = self.loggedUser()
         if not userData:
 
-            if _QT_APP:
+            if isQtApp():
                 userData = loginDialog(loginFunc=self.login)
             else:
                 for _ in xrange(2):
