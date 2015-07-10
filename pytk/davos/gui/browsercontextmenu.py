@@ -8,7 +8,7 @@ from pytk.util.sysutils import toStr
 from pytk.util.logutils import logMsg
 
 # from pytk.util.fsutils import pathNorm
-from pytk.util.logutils import forceLog
+# from pytk.util.logutils import forceLog
 from pytk.davos.core.drctypes import DrcFile
 
 
@@ -35,24 +35,24 @@ class BrowserContextMenu(BaseContextMenu):
         # proj = self.model().metamodel
 
         actionsCfg = (
-    { "label":"Edit"                , "fnc":self.editFile                   , "menu": "Main"},
+        { "label":"Edit"                , "fnc":self.editFile                   , "menu": "Main"},
 
-    { "label":"separator"                                                   , "menu": "Main"},
-    { "label":"Publish Version"     , "fnc":self.publishVersion             , "menu": "Main"},
+        { "label":"separator"                                                   , "menu": "Main"},
+        { "label":"Publish Version"     , "fnc":self.publishVersion             , "menu": "Main"},
 
-    { "label":"separator"                                                                                , "menu": "Main"},
-    { "label":"Off"                                , "fnc":self.setFilesLocked        , "args":[False]    , "menu": "Set Lock" },
-    { "label":"On"                                , "fnc":self.setFilesLocked        , "args":[True]        , "menu": "Set Lock" },
+        { "label":"separator"                                                                                , "menu": "Main"},
+        { "label":"Off"                                , "fnc":self.setFilesLocked        , "args":[False]    , "menu": "Set Lock" },
+        { "label":"On"                                , "fnc":self.setFilesLocked        , "args":[True]        , "menu": "Set Lock" },
 
-    { "label":"Remove"              , "dev":True, "fnc":self.removeItems    , "menu": "Advanced" },
+        { "label":"Remove"              , "dev":True, "fnc":self.removeItems    , "menu": "Advanced" },
 
-    { "label":"separator"           , "dev":False                           , "menu": "Main"},
-    { "label":"Refresh"             , "fnc":self.refreshItems               , "menu": "Main" },
+        { "label":"separator"           , "dev":False                           , "menu": "Main"},
+        { "label":"Refresh"             , "fnc":self.refreshItems               , "menu": "Main" },
         )
 
         return actionsCfg
 
-    @forceLog(log='all')
+    # @forceLog(log='all')
     def editFile(self, *itemList):
 
         drcFile = itemList[-1]._metaobj
