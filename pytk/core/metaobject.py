@@ -2,7 +2,7 @@
 from pytk.util.logutils import logMsg
 from pytk.util.sysutils import argToTuple
 from pytk.util.sysutils import toStr
-#from pytk.util.sysutils import getCaller
+# from pytk.util.sysutils import getCaller
 from pytk.util.strutils import upperFirst
 
 from .metaproperty import BasePropertyFactory
@@ -69,8 +69,11 @@ class MetaObject(object):
         if metaProperty.isValidValue(value):
 
             if writeValue:
-                if not metaProperty.write(value):
-                    return False
+                if metaProperty.isWritable():
+                    if not metaProperty.write(value):
+                        return False
+                else:
+                    logMsg("{} is NOT writable !".format(metaProperty), warning=True)
 
             setattr(self, metaProperty.name, value)
 

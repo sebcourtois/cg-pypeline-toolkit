@@ -94,11 +94,11 @@ class MetaProperty(object):
 
         return self.__reader()
 
-    def write(self):
+    def write(self, value):
 
         self.initAccessors()
 
-        return self.__writer()
+        return self.__writer(value)
 
     def getattr_(self, *args):
         return getattr(self._metaobj, self.name, *args)

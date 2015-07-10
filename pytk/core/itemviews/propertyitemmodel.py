@@ -239,7 +239,10 @@ class PropertyItemModel(QtGui.QStandardItemModel):
 
             propertyDct = self.propertiesDct[sProperty]
 
-            sValue = propertyDct.get("uiDisplay", labelify(sProperty))
+            sValue = propertyDct.get("uiDisplay")
+            if not sValue:
+                sValue = labelify(sProperty)
+
             self.setHeaderData(c, Qt.Horizontal, sValue, Qt.DisplayRole)
 
             sValue = propertyDct.get("uiToolTip", labelify(sProperty))

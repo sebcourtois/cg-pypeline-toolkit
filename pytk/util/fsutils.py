@@ -266,49 +266,27 @@ def sha1HashFile(sFilePath, chunk_size=1024 * 8):
     return h.hexdigest()
 
 
-def getLatestFile(sPath):
+def getLatestFile(sBackupDirPath, sTargetFileName):
 
     lastModifTime = 0
     sLatestFile = ""
 
-    for sItem in os.listdir(sPath):
+    sBaseFileName, _ = osp.splitext(sTargetFileName)
 
-        sItemPath = pathJoin(sPath, sItem)
+    for sFileName in os.listdir(sBackupDirPath):
 
-        if osp.isdir(sItem):
+        if not sFileName.startswith(sBaseFileName):
             continue
 
-        modifTime = osp.getmtime(sItemPath)
+        sFilePath = pathJoin(sBackupDirPath, sFileName)
+
+        if osp.isdir(sFilePath):
+            continue
+
+        modifTime = osp.getmtime(sFilePath)
 
         if modifTime > lastModifTime:
             lastModifTime = modifTime
-            sLatestFile = sItem
+            sLatestFile = sFileName
 
     return sLatestFile
-
-def backupFile(sFilePath):
-
-    if not osp.isfile(sFilePath):
-        raise ValueError, "Path does not lead to a file : '{0}' .".format(sFilePath)
-
-    sRootPath, sExt = osp.splitext(sFilePath)
-    sBackupDirPath = sRootPath + "_backups"
-
-    if not osp.exists(sBackupDirPath):
-        os.mkdir(sBackupDirPath)
-        i = 0
-        print "Created backup directory: '{0}'".format(sBackupDirPath)
-    else:
-        sLatestFile = getLatestFile(sBackupDirPath)
-        i = getIteration(osp.splitext(sLatestFile)[0])
-
-    sFileName = osp.basename(sRootPath)
-    sBackupRootPath = pathJoin(sBackupDirPath, sFileName)
-
-    sBackupFilePath = sBackupRootPath + "-" + padded(i, 3) + sExt
-    while osp.exists(sBackupFilePath):
-        i += 1
-        sBackupFilePath = sBackupRootPath + "-" + padded(i, 3) + sExt
-
-    copyFile(sFilePath, sBackupFilePath)
-    print "Backed up : '{0}'\n\tTo : '{1}'".format(sFilePath, sBackupFilePath)

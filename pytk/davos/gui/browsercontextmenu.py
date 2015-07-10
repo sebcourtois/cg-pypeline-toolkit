@@ -8,7 +8,7 @@ from pytk.util.sysutils import toStr
 from pytk.util.logutils import logMsg
 
 # from pytk.util.fsutils import pathNorm
-# from pytk.util.logutils import forceLog
+from pytk.util.logutils import forceLog
 from pytk.davos.core.drctypes import DrcFile
 
 
@@ -35,31 +35,63 @@ class BrowserContextMenu(BaseContextMenu):
         # proj = self.model().metamodel
 
         actionsCfg = (
-            { "label":"Edit"                , "fnc":self.editFile                   , "menu": "Main"},
+    { "label":"Edit"                , "fnc":self.editFile                   , "menu": "Main"},
 
-            { "label":"separator"                                                   , "menu": "Main"},
-            { "label":"Publish Version"     , "fnc":self.publishVersion             , "menu": "Main"},
+    { "label":"separator"                                                   , "menu": "Main"},
+    { "label":"Publish Version"     , "fnc":self.publishVersion             , "menu": "Main"},
 
-            { "label":"Remove"              , "dev":True, "fnc":self.removeItems    , "menu": "Advanced" },
+    { "label":"separator"                                                                                , "menu": "Main"},
+    { "label":"Off"                                , "fnc":self.setFilesLocked        , "args":[False]    , "menu": "Set Lock" },
+    { "label":"On"                                , "fnc":self.setFilesLocked        , "args":[True]        , "menu": "Set Lock" },
 
-            { "label":"separator"           , "dev":False                           , "menu": "Main"},
-            { "label":"Refresh"             , "fnc":self.refreshItems               , "menu": "Main" },
+    { "label":"Remove"              , "dev":True, "fnc":self.removeItems    , "menu": "Advanced" },
+
+    { "label":"separator"           , "dev":False                           , "menu": "Main"},
+    { "label":"Refresh"             , "fnc":self.refreshItems               , "menu": "Main" },
         )
 
         return actionsCfg
 
+    @forceLog(log='all')
     def editFile(self, *itemList):
 
         drcFile = itemList[-1]._metaobj
-        drcFile.makePrivateCopy(dry_run=False)
+
+        try:
+            drcFile.edit()
+        except Exception, e:
+            confirmDialog(title='SORRY !'
+                        , message=toStr(e)
+                        , button=["OK"]
+                        , defaultButton="OK"
+                        , cancelButton="OK"
+                        , dismissString="OK"
+                        , icon="critical")
 
     editFile.auth_types = ("DrcFile",)
+
+
+    def setFilesLocked(self, bLock, *itemList):
+
+        drcFiles = (item._metaobj for item in itemList)
+
+        sAction = "Lock" if bLock else "Unlock"
+
+        for df in drcFiles:
+            df.refresh()
+            if df.setLocked(bLock):
+                logMsg('{0} {1}.'.format(sAction + "ed", df))
+
+        return True
+
+    setFilesLocked.auth_types = [ "DrcFile" ]
+
 
     # @forceLog(log='all')
     def refreshItems(self, *itemList, **kwargs):
 
         for item in itemList:
-            item._metaobj.refresh()
+            item._metaobj.refresh(children=True)
 
     def removeItems(self, *itemList):
 
@@ -92,8 +124,6 @@ class BrowserContextMenu(BaseContextMenu):
 
         item = itemList[-1]
         drcFile = item._metaobj
-
-        print drcFile.getVersion()
 
         sErr = ""
         if type(drcFile) is not DrcFile:

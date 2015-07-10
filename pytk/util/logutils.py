@@ -1,7 +1,7 @@
 
-#-*- coding:Utf-8 -*-
+# -*- coding:Utf-8 -*-
 
-#from __future__ import print_function
+# from __future__ import print_function
 import sys
 from .sysutils import toStr
 
@@ -92,7 +92,7 @@ def __logPrint(*args, **kwargs):
     bWarning = kwargs.pop("warning", False)
 
     if bWarning:
-        print "# Warning :" + " ".join(toStr(arg) for arg in args) + " #"
+        print "# Warning: " + " ".join(toStr(arg) for arg in args) + " #"
     else:
         print " ".join(toStr(arg) for arg in args)
 

@@ -65,19 +65,19 @@ DrcEntryProperties = (
     'uiCategory':'01_General',
     }
 ),
-('creationTime',
-    {
-    'type':'drc_time',
-    'isMulti':False,
-    'accessor':'_qfileinfo',
-    'read':'created()',
-    'storable':False,
-    'uiEditable':Eds.Disabled,
-    'uiVisible':True,
-    'uiDisplay':'Creation Date',
-    'uiCategory':'01_General',
-    }
-),
+# ('creationTime',
+#     {
+#     'type':'drc_time',
+#     'isMulti':False,
+#     'accessor':'_qfileinfo',
+#     'read':'created()',
+#     'storable':False,
+#     'uiEditable':Eds.Disabled,
+#     'uiVisible':True,
+#     'uiDisplay':'Creation Date',
+#     'uiCategory':'01_General',
+#     }
+# ),
 )
 
 DrcFileProperties = [
@@ -93,6 +93,77 @@ DrcFileProperties = [
     'uiVisible':True,
     'uiDisplay':'Size',
     'uiCategory':'01_General',
+    }
+),
+('hashKey',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'default':'',
+    'accessor':'',
+    'read':'',
+    'storable':False,
+    'uiEditable':Eds.Disabled,
+    'uiVisible':True,
+    'uiDisplay':'',
+    'uiCategory':None,
+    }
+),
+('lockOwner',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'default':'',
+    'accessor':'_lockfile',
+    'read':'owner()',
+    'storable':False,
+    'uiEditable':Eds.Disabled,
+    'uiVisible':True,
+    'uiDisplay':"Locked by",
+    'uiCategory':"05_File",
+    }
+),
+('locked',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'default':False,
+    'accessor':'_lockfile',
+    'read':'is_locked()',
+    'write':'set_locked()',
+    'storable':False,
+    'uiEditable':Eds.Disabled,
+    'uiVisible':False,
+    'uiDisplay':"",
+    'uiCategory':"05_File",
+    }
+),
+('comment',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'default':'',
+    'accessor':'',
+    'read':'',
+    'storable':False,
+    'uiEditable':Eds.Disabled,
+    'uiVisible':True,
+    'uiDisplay':'',
+    'uiCategory':None,
+    }
+),
+('sourceFile',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'default':'',
+    'accessor':'',
+    'read':'',
+    'storable':False,
+    'uiEditable':Eds.Disabled,
+    'uiVisible':True,
+    'uiDisplay':'',
+    'uiCategory':None,
     }
 ),
 ]
