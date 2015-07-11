@@ -280,6 +280,7 @@ class DrcFile(DrcEntry):
             self.makePrivateCopy()
         except:
             self.setLocked(bLockState)
+            raise
 
     def makePrivateCopy(self, **kwargs):
 

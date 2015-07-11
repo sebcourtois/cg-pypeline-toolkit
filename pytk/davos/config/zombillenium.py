@@ -27,7 +27,7 @@ class asset_lib:
     asset_tree = {
         "{assetType}":
             {
-            "{asset} -> root_dir":
+            "{asset} -> asset_dir":
                 {
                 "texture -> texture_dir":{},
                 "ref -> ref_dir":{},
@@ -47,7 +47,7 @@ class shot_lib:
     shot_tree = {
         "{sequence}":
             {
-            "{shot} -> root_dir":
+            "{shot} -> shot_dir":
                 {
                 },
             },

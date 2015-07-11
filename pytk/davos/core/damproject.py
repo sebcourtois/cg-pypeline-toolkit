@@ -1,30 +1,15 @@
 
-from pytk.core.authenticator import Authenticator
-
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
 from pytk.util.fsutils import pathJoin, pathResolve
-from pytk.util.sysutils import importModule
 from pytk.util.strutils import findFields
 
 from .drclibrary import DrcLibrary
+from .damtypes import DamUser
+from .dummyauth import DummyAuth
+from .utils import getConfigModule
 
 LIBRARY_SPACES = ("public", "private")
-
-def getConfigModule(sProjectName):
-
-    sConfigModule = sProjectName
-
-    try:
-        modobj = importModule(sConfigModule)
-    except ImportError:
-        sConfigModule = 'pytk.davos.config.' + sProjectName
-        modobj = importModule(sConfigModule)
-
-    reload(modobj)
-
-    return modobj
-
 
 class DamProject(object):
 
@@ -76,7 +61,7 @@ class DamProject(object):
 
         sAuthFullName = self.getVar("project", "authenticator", "")
         if not sAuthFullName:
-            return Authenticator()
+            return DummyAuth()
         else:
             sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
             exec("from {} import {}".format(sAuthMod, sAuthClass))
@@ -190,11 +175,4 @@ class DamProject(object):
     def editFile(self, drcFile):
         pass
 
-
-class DamUser(object):
-
-    def __init__(self, project, userData):
-
-        self.name = userData.get("name", "")
-        self.loginName = userData.get("login", "")
 

@@ -6,6 +6,8 @@ from pytk.core.dialogs import promptDialog
 from pytk.util.logutils import logMsg
 from pytk.util.external.lockfile.mkdirlockfile import MkdirLockFile
 from pytk.util.external.lockfile import LockError, UnlockError
+from pytk.util.sysutils import importModule
+
 
 _interDashesRgx = re.compile(r'-([a-z][0-9]+)')
 
@@ -38,6 +40,22 @@ class LockFile(MkdirLockFile):
             except UnlockError:return False
 
         return True
+
+
+def getConfigModule(sProjectName):
+
+    sConfigModule = sProjectName
+
+    try:
+        modobj = importModule(sConfigModule)
+    except ImportError:
+        sConfigModule = 'pytk.davos.config.' + sProjectName
+        modobj = importModule(sConfigModule)
+
+    reload(modobj)
+
+    return modobj
+
 
 def findVersionFields(s):
     return _interDashesRgx.findall(s)

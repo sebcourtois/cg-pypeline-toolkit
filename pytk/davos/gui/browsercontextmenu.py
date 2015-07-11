@@ -41,8 +41,8 @@ class BrowserContextMenu(BaseContextMenu):
         { "label":"Publish Version"     , "fnc":self.publishVersion             , "menu": "Main"},
 
         { "label":"separator"                                                                                , "menu": "Main"},
-        { "label":"Off"                                , "fnc":self.setFilesLocked        , "args":[False]    , "menu": "Set Lock" },
-        { "label":"On"                                , "fnc":self.setFilesLocked        , "args":[True]        , "menu": "Set Lock" },
+        { "label":"Off"                 , "fnc":self.setFilesLocked        , "args":[False]    , "menu": "Set Lock" },
+        { "label":"On"                  , "fnc":self.setFilesLocked        , "args":[True]        , "menu": "Set Lock" },
 
         { "label":"Remove"              , "dev":True, "fnc":self.removeItems    , "menu": "Advanced" },
 
@@ -115,7 +115,7 @@ class BrowserContextMenu(BaseContextMenu):
         for entry in entryList:
 
             if entry.isPublic():
-                logMsg("Cannot remove a public file: {}".format(entry.name) , warning=True)
+                logMsg(u"Cannot remove a public file: {}".format(entry.name) , warning=True)
                 continue
 
             entry.sendToTrash()

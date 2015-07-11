@@ -11,7 +11,7 @@ import hashlib
 from distutils import file_util
 
 from .sysutils import toUnicode, argToList
-from .strutils import getIteration, padded
+#from .strutils import getIteration, padded
 
 def isDirStat(statobj):
     return stat.S_ISDIR(statobj.st_mode)
