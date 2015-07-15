@@ -6,6 +6,7 @@ from pytk.core.dialogs import confirmDialog
 
 from pytk.util.sysutils import toStr
 from pytk.util.logutils import logMsg
+from pytk.util.fsutils import  pathSuffixed
 
 # from pytk.util.fsutils import pathNorm
 # from pytk.util.logutils import forceLog
@@ -38,7 +39,7 @@ class BrowserContextMenu(BaseContextMenu):
         { "label":"Edit"                , "fnc":self.editFile                   , "menu": "Main"},
 
         { "label":"separator"                                                   , "menu": "Main"},
-        { "label":"Publish Version"     , "fnc":self.publishVersion             , "menu": "Main"},
+        { "label":"Publish Version"     , "fnc":self.publishEditedVersion             , "menu": "Main"},
 
         { "label":"separator"                                                                                , "menu": "Main"},
         { "label":"Off"                 , "fnc":self.setFilesLocked        , "args":[False]    , "menu": "Set Lock" },
@@ -56,17 +57,7 @@ class BrowserContextMenu(BaseContextMenu):
     def editFile(self, *itemList):
 
         drcFile = itemList[-1]._metaobj
-
-        try:
-            drcFile.edit()
-        except Exception, e:
-            confirmDialog(title='SORRY !'
-                        , message=toStr(e)
-                        , button=["OK"]
-                        , defaultButton="OK"
-                        , cancelButton="OK"
-                        , dismissString="OK"
-                        , icon="critical")
+        drcFile.edit()
 
     editFile.auth_types = ("DrcFile",)
 
@@ -77,10 +68,10 @@ class BrowserContextMenu(BaseContextMenu):
 
         sAction = "Lock" if bLock else "Unlock"
 
-        for df in drcFiles:
-            df.refresh()
-            if df.setLocked(bLock):
-                logMsg('{0} {1}.'.format(sAction + "ed", df))
+        for drcFile in drcFiles:
+            drcFile.refresh()
+            if drcFile.setLocked(bLock):
+                logMsg('{0} {1}.'.format(sAction + "ed", drcFile))
 
         return True
 
@@ -120,45 +111,37 @@ class BrowserContextMenu(BaseContextMenu):
 
             entry.sendToTrash()
 
-    def publishVersion(self, *itemList):
+    @staticmethod
+    def pickupPrivateFileToPublish(drcFile):
+
+        privDir = drcFile.getPrivateDir()
+        if not privDir:
+            raise RuntimeError, 'Could not find the private directory !'
+
+        sNameFilter = pathSuffixed(drcFile.nextVersionName(), '*').replace(' ', '?')
+        sSrcFilePath, _ = QtGui.QFileDialog.getOpenFileName(None,
+                                                            "You know what to do...",
+                                                            privDir.pathname(),
+                                                            sNameFilter
+                                                            )
+
+        return sSrcFilePath
+
+    def publishEditedVersion(self, *itemList):
 
         item = itemList[-1]
         drcFile = item._metaobj
 
-        sErr = ""
         if type(drcFile) is not DrcFile:
-            sErr = 'A {0} cannot be published.'.format(type(drcFile).__name__)
+            raise TypeError, 'A {} cannot be published.'.format(type(drcFile).__name__)
 
-        if not sErr:
-            try:
-                privDir = drcFile.getPrivateDir()
-            except AssertionError, e:
-                sErr = toStr(e)
-            else:
-                if not privDir:
-                    sErr = 'Could not found its private directory !'.format(type(drcFile).__name__)
-
-        if sErr:
-            sMsg = "Cannot publish a new version : \n\n    > "
-            confirmDialog(title='SORRY !'
-                        , message=sMsg + sErr
-                        , button=["OK"]
-                        , defaultButton="OK"
-                        , cancelButton="OK"
-                        , dismissString="OK"
-                        , icon="critical")
-            return
-
-        sFilter = "File (*{0})".format(drcFile.suffix) if drcFile.suffix else ""
-        sSrcFilePath, _ = QtGui.QFileDialog.getOpenFileName(None,
-                                                            "You know what to do...",
-                                                            privDir.pathname(),
-                                                            sFilter
-                                                            )
+        sSrcFilePath = self.__class__.pickupPrivateFileToPublish(drcFile)
         if not sSrcFilePath:
             logMsg("Cancelled !", warning=True)
             return
 
-        drcFile.incrementVersion(sSrcFilePath, autoLock=True)
+        proj = self.model()._metamodel
 
-    publishVersion.auth_types = ("DrcFile" ,)
+        proj.publishEditedVersion(sSrcFilePath, autoLock=True)
+
+    publishEditedVersion.auth_types = ("DrcFile" ,)

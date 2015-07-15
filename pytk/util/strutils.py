@@ -1,8 +1,6 @@
 
 import re
 
-
-
 _iterativePartRgx = re.compile('_\d+_(?=\D)|\d+$')
 _trailingNumRgx = re.compile('([0-9]+)$')
 _interBracketsRgx = re.compile(r'{([^{}]*?)}')
@@ -112,7 +110,8 @@ def getNumPart(in_sName, **kwargs):
     elif sPart == "iterative":
         rgx = _iterativePartRgx
     else:
-        raise ValueError, 'Invalid value for "part" kwarg : "{0}". Must be "iterative" or "trailing".'.format(sPart)
+        raise ValueError('Invalid value for "part" kwarg : "{0}". \
+                        Must be "iterative" or "trailing".'.format(sPart))
 
     try:
         sIter = rgx.findall(in_sName)[-1]

@@ -56,21 +56,12 @@ def getConfigModule(sProjectName):
 
     return modobj
 
+def versionFromName(sFileName):
+    vers = findVersionFields(sFileName)
+    return int(vers[0].strip('v')) if vers else None
 
 def findVersionFields(s):
     return _interDashesRgx.findall(s)
-
-def formattedVersion(letter, version):
-    return '{}{:03d}'.format(letter, version)
-
-def addVersionSuffixes(sFileNameOrPath, *versions):
-
-    sRootPath, sExt = os.path.splitext(sFileNameOrPath)
-
-    sJoinList = [sRootPath]
-    sJoinList.extend(versions)
-
-    return "-".join(sJoinList) + sExt
 
 def promptForComment(**kwargs):
 

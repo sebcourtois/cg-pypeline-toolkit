@@ -1,7 +1,7 @@
 
 from pytk.util.pyconfparser import PyConfParser
 from pytk.util.logutils import logMsg
-from pytk.util.fsutils import pathJoin, pathResolve
+from pytk.util.fsutils import pathJoin, pathResolve, pathNorm
 from pytk.util.strutils import findFields
 
 from .drclibrary import DrcLibrary
@@ -26,6 +26,8 @@ class DamProject(object):
 
         if not proj.init():
             return None
+
+        proj.loadLibraries()
 
         return proj
 
@@ -151,18 +153,30 @@ class DamProject(object):
 
         return sRcPath
 
+    def libraryFromPath(self, sEntryPath):
+
+        sPath = pathNorm(sEntryPath)
+
+        for drcLib in self.loadedLibraries.itervalues():
+            if drcLib.contains(sPath):
+                return drcLib
+
+    def entryFromPath(self, sEntryPath):
+
+        drcLib = self.libraryFromPath(sEntryPath)
+        assert drcLib is not None, "Path is NOT from a KNOWN library !"
+
+        return drcLib.getEntry(sEntryPath)
+
+    def publishEditedVersion(self, sSrcFilePath, **kwargs):
+
+        privFile = self.entryFromPath(sSrcFilePath)
+        pubFile = privFile.getPublicFile()
+        pubFile.assertFilePublishable(privFile)
+        pubFile.incrementVersion(privFile, **kwargs)
+
     def listUiClasses(self):
         return DrcLibrary.listUiClasses()
-
-    def _assertSpaceAndLibName(self, sSpace, sLibName):
-
-        if sSpace not in LIBRARY_SPACES:
-            raise ValueError, "No such space: '{}'. Expected: {}".format(sSpace, LIBRARY_SPACES)
-
-        if sLibName not in self.__confLibraries:
-            msg = ("No such library: '{}'. \n\n\tKnown libraries: {}"
-                   .format(sLibName, self.__confLibraries))
-            raise ValueError(msg)
 
     def setItemModel(self, model):
         self._itemmodel = model
@@ -172,7 +186,13 @@ class DamProject(object):
     def iterChildren(self):
         return self.loadedLibraries.itervalues()
 
-    def editFile(self, drcFile):
-        pass
+    def _assertSpaceAndLibName(self, sSpace, sLibName):
 
+        if sSpace not in LIBRARY_SPACES:
+            raise ValueError("No such space: '{}'. Expected: {}"
+                            .format(sSpace, LIBRARY_SPACES))
 
+        if sLibName not in self.__confLibraries:
+            msg = ("No such library: '{}'. \n\n\tKnown libraries: {}"
+                   .format(sLibName, self.__confLibraries))
+            raise ValueError(msg)

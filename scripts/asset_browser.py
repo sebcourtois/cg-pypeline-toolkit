@@ -18,8 +18,9 @@ def main(*argv):
     view = AssetBrowserWidget()
     view.show()
 
-    proj = DamProject("zombillenium")
+    proj = DamProject("zombillenium", empty=True)
     if proj:
+        proj.init()
         view.setupModelData(proj)
         proj.loadLibraries()
 

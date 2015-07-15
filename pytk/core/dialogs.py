@@ -1,5 +1,4 @@
 
-from functools import partial
 
 from PySide import QtGui
 from PySide import QtCore
@@ -126,20 +125,24 @@ class PromptDialog(QtGui.QDialog):
 
         sStyleList = ("integer", "text", "float")
         if self._style not in sStyleList:
-            raise TypeError, 'Wrong type passed to style argument: "{0}", should be one of the list: {1}.'.format(self._style, sStyleList)
+            raise TypeError('Wrong type passed to style argument: "{0}", should be one of the list: {1}.'
+                            .format(self._style, sStyleList))
 
         if not self._style == "text":
             oFloatClsList = (float, int)
 
             if not isinstance(self._minValue, oFloatClsList):
-                raise TypeError, 'Wrong type passed to "min" argument: "{0}", should be one of the list: {1}.'.format(self._minValue, oFloatClsList)
+                raise TypeError('Wrong type passed to "min" argument: "{0}", should be one of the list: {1}.'
+                                .format(self._minValue, oFloatClsList))
 
             if not isinstance(self._maxValue, oFloatClsList):
-                raise TypeError, 'Wrong type passed to "max" argument: "{0}", should be one of the list: {1}.'.format(self._maxValue, oFloatClsList)
+                raise TypeError('Wrong type passed to "max" argument: "{0}", should be one of the list: {1}.'
+                                 .format(self._maxValue, oFloatClsList))
 
             if self._inputValue:
                 if not isinstance(self._inputValue, oFloatClsList):
-                    raise TypeError, 'Wrong type passed to "text" argument: "{0}", should be one of the list: {1}.'.format(self._inputValue, oFloatClsList)
+                    raise TypeError('Wrong type passed to "text" argument: "{0}", should be one of the list: {1}.'
+                                     .format(self._inputValue, oFloatClsList))
             else:
                 self._inputValue = self._minValue
 

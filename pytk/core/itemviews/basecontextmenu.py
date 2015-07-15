@@ -5,6 +5,9 @@ from PySide import QtGui
 SelectionBehavior = QtGui.QAbstractItemView.SelectionBehavior
 
 from pytk.core.itemviews.utils import createAction
+from pytk.core.dialogs import confirmDialog
+
+from pytk.util.sysutils import toStr
 from pytk.util.logutils import logMsg
 
 class BaseContextMenu(QtGui.QMenu):
@@ -18,6 +21,13 @@ class BaseContextMenu(QtGui.QMenu):
 
         self.createActions()
         self.buildSubmenus()
+
+    def model(self):
+        model = self.view.model()
+        if isinstance(model, QtGui.QSortFilterProxyModel):
+            return model.sourceModel()
+
+        return model
 
     def getActionSelection(self):
 
@@ -60,7 +70,7 @@ class BaseContextMenu(QtGui.QMenu):
     def assertActionSelection(self):
 
         if not self.actionSelectionLoaded:
-            raise RuntimeError, "Action Selection not loaded."
+            raise RuntimeError("Action Selection not loaded.")
         else:
             self.actionSelectionLoaded = False
 
@@ -68,14 +78,28 @@ class BaseContextMenu(QtGui.QMenu):
 
         self.assertActionSelection()
 
+        sActionMsg = "'{}'>'{}'".format(actionDct["menu"], actionDct["label"])
         try:
-            logMsg('# Action: "{0}" > "{1}" #'.format(actionDct["menu"], actionDct["label"]))
+            logMsg(u'# Action: {} #'.format(sActionMsg))
         except Exception, e:
             logMsg(e, warning=True)
 
         args = actionDct.get("args", []) + self.actionSelection
         kwargs = actionDct.get("kwargs", {})
-        return actionDct["fnc"](*args, **kwargs)
+        func = actionDct["fnc"]
+
+        try:
+            return func(*args, **kwargs)
+        except Exception, err:
+            sMsg = "Could not launch {} : \n\n> ".format(sActionMsg)
+            confirmDialog(title='SORRY !'
+                        , message=sMsg + toStr(err)
+                        , button=["OK"]
+                        , defaultButton="OK"
+                        , cancelButton="OK"
+                        , dismissString="OK"
+                        , icon="critical")
+            raise
 
     def getActionsConfig(self):
         return []
@@ -96,8 +120,8 @@ class BaseContextMenu(QtGui.QMenu):
             if sAction == "separator":
                 qAction = None
             else:
-                fnc = functools.partial(self.launchAction, actionDct)
-                qAction = createAction(sAction, self, slot=fnc)
+                actionSlot = functools.partial(self.launchAction, actionDct)
+                qAction = createAction(sAction, self, slot=actionSlot)
 
                 self.createdActions.append(qAction)
 

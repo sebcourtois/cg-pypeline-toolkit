@@ -10,17 +10,17 @@ from pytk.core.dialogs import confirmDialog
 
 from pytk.util.logutils import logMsg
 from pytk.util.qtutils import toQFileInfo
-from pytk.util.fsutils import pathJoin# , pathResolve
-from pytk.util.fsutils import copyFile, getLatestFile
+from pytk.util.fsutils import pathJoin, pathSuffixed
+from pytk.util.fsutils import copyFile
 from pytk.util.fsutils import sha1HashFile
 from pytk.util.qtutils import setWaitCursor
-# from pytk.util.sysutils import toUtf8
+from pytk.util.strutils import padded
 from pytk.util.external.send2trash import send2trash
 
 from .properties import DrcMetaObject
 from .properties import DrcEntryProperties, DrcFileProperties
 from .utils import promptForComment
-from .utils import findVersionFields, addVersionSuffixes, formattedVersion
+from .utils import versionFromName
 from .utils import LockFile
 
 class DrcEntry(DrcMetaObject):
@@ -45,6 +45,11 @@ class DrcEntry(DrcMetaObject):
 
         fileInfo = toQFileInfo(drcPath)
         if fileInfo:
+
+            if id(self) != id(drcLibrary):
+                msg = "Path is NOT part of {}: '{}'".format(drcLibrary, drcPath)
+                assert drcLibrary.contains(fileInfo.absoluteFilePath()), msg
+
             self.loadData(fileInfo)
 
     def loadData(self, fileInfo):
@@ -60,7 +65,7 @@ class DrcEntry(DrcMetaObject):
             sAbsPath = fileInfo.absoluteFilePath()
 
             self._qdir = QDir(sAbsPath)
-            self._qdir.setFilter(QDir.AllEntries | QDir.NoDotAndDotDot | QDir.AllDirs)
+            self._qdir.setFilter(QDir.NoDotAndDotDot | QDir.Dirs | QDir.Files)
 
         super(DrcEntry, self).loadData()
 
@@ -107,7 +112,7 @@ class DrcEntry(DrcMetaObject):
             primeItem.updateRow()
 
     def parent(self):
-        return self.library.getEntry(self._qfileinfo.absolutePath())
+        return DrcDir(self.library, self._qfileinfo.absolutePath())
 
     def loadChildren(self):
 
@@ -211,11 +216,17 @@ class DrcEntry(DrcMetaObject):
 
     def __getattr__(self, sAttrName):
 
-        member = self._qfileinfo
-        if hasattr(member, sAttrName):
-            return getattr(member, sAttrName)
+        sAccessor = '_qfileinfo'
+
+        if (sAttrName == sAccessor) and  not hasattr(self, sAccessor):
+            s = "'{}' object has no attribute '{}'.".format(type(self).__name__, sAttrName)
+            raise AttributeError(s)
+
+        accessor = getattr(self, sAccessor)
+        if hasattr(accessor, sAttrName):
+            return getattr(accessor, sAttrName)
         else:
-            s = "'{}' object has no attribute '{}'".format(type(self).__name__, sAttrName)
+            s = "'{}' object has no attribute '{}'.".format(type(self).__name__, sAttrName)
             raise AttributeError(s)
 
     def __cmp__(self, other):
@@ -232,13 +243,16 @@ class DrcDir(DrcEntry):
     def __init__(self, drcLibrary, drcPath=None):
         super(DrcDir, self).__init__(drcLibrary, drcPath)
 
-    def getHomonym(self, sSpace):
+    def getHomonym(self, sSpace, create=False):
 
         curLib = self.library
         homoLib = curLib.getHomonym(sSpace)
 
         sHomoLibPath = homoLib.pathname()
         sHomoPath = re.sub("^" + curLib.pathname(), sHomoLibPath, self.pathname())
+
+        if not os.path.exists(sHomoPath) and create:
+            os.makedirs(sHomoPath)
 
         return homoLib.getEntry(sHomoPath)
 
@@ -261,6 +275,8 @@ class DrcFile(DrcEntry):
     def __init__(self, drcLibrary, drcPath=None):
         super(DrcFile, self).__init__(drcLibrary, drcPath)
 
+        self.publishAsserted = False
+        self.__savedLockState = None
 
     def loadData(self, fileInfo):
 
@@ -268,6 +284,15 @@ class DrcFile(DrcEntry):
         self._lockfile = LockFile(fileInfo.absoluteFilePath(), sUser)
 
         DrcEntry.loadData(self, fileInfo)
+
+        self.updateCurrentVersion()
+
+    def updateCurrentVersion(self):
+
+        iVers = versionFromName(self.name)
+        if iVers is None:
+            iVers = self.latestBackupVersion()
+        self.currentVersion = iVers
 
     def edit(self):
         logMsg(log='all')
@@ -284,31 +309,26 @@ class DrcFile(DrcEntry):
 
     def makePrivateCopy(self, **kwargs):
 
+        self.refresh()
+
         sPubFilePath = self.pathname()
 
         assert self.isFile(), "File does NOT exist !"
-        assert self.isPublic(), "File in PRIVATE library !"
+        assert self.isPublic(), "File is NOT public !"
 
-        sPubDirPath, sPubFilenameWithExt = os.path.split(sPubFilePath)
+        pubDir = self.parent()
+        privDir = pubDir.getHomonym('private', create=True)
 
-        # converting the file directory path from public to private
-        pubLib = self.library
-        privLib = pubLib.getHomonym("private")
-
-        sPubLibPath = pubLib.pathname()
-        sPrivLibPath = privLib.pathname()
-
-        sPrivDirPath = re.sub("^" + sPubLibPath, sPrivLibPath, sPubDirPath)
+        sPrivDirPath = privDir.pathname()
 
         # adding version suffixes to filename
+        sVersionedName = self.nextVersionName()
+        sPrivFilenameWithExt = pathSuffixed(sVersionedName, '.', padded(0))
 
-        v = formattedVersion('v', self.getLatestVersion() + 1)
-        w = formattedVersion('w', 0)
-        sPrivFilenameWithExt = addVersionSuffixes(sPubFilenameWithExt, v, w)
-
-        # at this point, file path is fully converted
+        # at this point, file path is fully converted to private space
         sPrivFilePath = pathJoin(sPrivDirPath, sPrivFilenameWithExt)
 
+        # now let's make the private copy of that file
         if sPubFilePath == sPrivFilePath:
             raise ValueError('Path of source and destination files are identical: "{0}".'
                              .format(sPubFilePath))
@@ -356,14 +376,10 @@ You have {0} version of '{1}':
         if bSameFiles:
             logMsg('\nAlready copied "{0}" \n\t to: "{1}"'.format(sPubFilePath, sPrivFilePath))
         else:
+            # logMsg('\nCoping "{0}" \n\t to: "{1}"'.format(sPubFilePath, sPrivFilePath))
             copyFile(sPubFilePath, sPrivFilePath, **kwargs)
-            logMsg('\nCopied "{0}" \n\t to: "{1}"'.format(sPubFilePath, sPrivFilePath))
 
         return sPrivFilePath
-
-
-    def _incrementDamNode(self, sComment):
-        return self.setPrpty("comment", sComment)# self.node.increment(toUtf8(sComment))
 
     def differsFrom(self, sOtherFilePath):
 
@@ -383,11 +399,80 @@ You have {0} version of '{1}':
 
         return bDiffers, sOtherSha1Key
 
+    def getPublicFile(self):
+
+        assert self.isFile(), "File does NOT exist !"
+        assert self.isPrivate(), "File must live in a PRIVATE library !"
+
+        privDir = self.parent()
+        pubDir = privDir.getHomonym('public')
+
+        sPrivFilename , sExt = os.path.splitext(self.name)
+
+        sPubDirPath = pubDir.pathname()
+        sPubFilename = sPrivFilename.split('-v')[0] + sExt
+        sPubFilePath = pathJoin(sPubDirPath, sPubFilename)
+
+        return pubDir.library.getEntry(sPubFilePath)
+
+    def getPrivateDir(self):
+
+        assert self.isFile(), "File does NOT exist !"
+        assert self.isPublic(), "File is NOT public !"
+
+        pubDir = self.parent()
+        privDir = pubDir.getHomonym("private")
+        return privDir
+
+    def latestBackupVersion(self):
+        backupFile = self.getLatestBackupFile()
+        return versionFromName(backupFile.name) if backupFile else 0
+
+    def getLatestBackupFile(self):
+
+        backupDir = self.getBackupDir()
+        if not backupDir:
+            return None
+
+        sNameFilter = pathSuffixed(self.name, '*')
+        sEntryList = backupDir._qdir.entryList((sNameFilter,),
+                                               filters=QDir.Files,
+                                               sort=(QDir.Name | QDir.Reversed))
+
+        if not sEntryList:
+            return None
+
+        sFilePath = pathJoin(backupDir.pathname(), sEntryList[0])
+        return self.library.getEntry(sFilePath)
+
+    def assertFilePublishable(self, privFile):
+
+        assert privFile.isPrivate(), "File must live in a PRIVATE library !"
+
+        iSrcVers = versionFromName(privFile.name)
+        iNxtVers = self.latestBackupVersion() + 1
+
+        if iSrcVers < iNxtVers:
+            raise AssertionError, "File version is OBSOLETE !"
+        elif iSrcVers > iNxtVers:
+            raise AssertionError, "File version is WHAT THE FUCK !"
+
+        privFile.publishAsserted = True
+
     @setWaitCursor
-    def incrementVersion(self, sSrcFilePath, **kwargs):
+    def incrementVersion(self, srcFile, **kwargs):
+
+        if not srcFile.publishAsserted:
+            srcFile.publishAsserted = False
+            raise RuntimeError("DrcFile.assertFilePublishable() has not been applied to {} !"
+                               .format(srcFile))
 
         bAutoUnlock = kwargs.pop("autoUnlock", False)
         bSaveSha1Key = kwargs.pop("saveSha1Key", False)
+
+        self.saveLockState()
+
+        sSrcFilePath = srcFile.pathname()
 
         bDiffers, sSrcSha1Key = self.differsFrom(sSrcFilePath)
         if not bDiffers:
@@ -397,115 +482,36 @@ You have {0} version of '{1}':
         backupFile = None
 
         try:
-            sComment, backupFile, bLockState = self.beginPublish(**kwargs)
+            sComment, _ = self.beginPublish(**kwargs)
         except RuntimeError, e:
-            return self.abortPublish(e, backupFile, bAutoUnlock)
+            self.abortPublish(e, backupFile, bAutoUnlock)
+            raise
 
         try:
             copyFile(sSrcFilePath, self.pathname())
         except Exception, e:
-            return self.abortPublish(e, backupFile, bAutoUnlock)
+            self.abortPublish(e, backupFile, bAutoUnlock)
+            raise
 
-        if not self._incrementDamNode(sComment):
-            return self.abortPublish("Version increment failed", backupFile, bAutoUnlock)
-
-        self.endPublish(sSrcFilePath, autoUnlock=bAutoUnlock, saveSha1Key=bSaveSha1Key,
-                        sha1Key=sSrcSha1Key, lockState=bLockState)
+        iCurVers = self.currentVersion
+        try:
+            self.endPublish(sSrcFilePath, sComment,
+                            saveSha1Key=bSaveSha1Key,
+                            sha1Key=sSrcSha1Key,
+                            autoUnlock=bAutoUnlock)
+        except Exception, e:
+            self.abortPublish(e, backupFile, bAutoUnlock)
+            self.rollBackToVersion(iCurVers)
+            raise
 
         return True
-
-    def getPrivateDir(self):
-
-        assert self.isFile(), "File does NOT exist !"
-        assert self.isPublic(), "File in PRIVATE library !"
-
-        pubDir = self.parent()
-        privDir = pubDir.getHomonym("private")
-        return privDir
-
-    def getLatestVersion(self):
-        sFileName = getLatestFile(self.getBackupDir().pathname(), self.name)
-        if not sFileName:
-            v = 0
-        else:
-            vers = findVersionFields(sFileName)
-            v = int(vers[0].strip('v')) if vers else 0
-
-        return v
-
-    def getLatestBackupFile(self):
-
-        sBkupDirPath = self.getBackupDir().pathname()
-        sFileName = getLatestFile(sBkupDirPath, self.name)
-
-        if not sFileName:
-            return None
-
-        sFilePath = pathJoin(sBkupDirPath, sFileName)
-        return self.library.getEntry(sFilePath)
-
-
-    def versionFromName(self):
-        vers = findVersionFields(self.name)
-        return int(vers[0].strip('v')) if vers else 0
-
-    def getBackupDir(self):
-
-        sDirPath = pathJoin(self.parent().pathname(), "_version")
-        if not os.path.exists(sDirPath):
-            os.mkdir(sDirPath)
-
-        return self.library.getEntry(sDirPath)
-
-
-    def createBackup(self, **kwargs):
-
-#         if not self.checkPathOnDisk(space="server", confirm=False):
-#             return None
-
-        v = formattedVersion('v', self.getLatestVersion() + 1)
-        sBkupFilename = addVersionSuffixes(self.name, v)
-
-        backupDir = self.getBackupDir()
-        sBkupFilePath = pathJoin(backupDir.pathname(), sBkupFilename)
-        if os.path.exists(sBkupFilePath):
-            raise RuntimeError, "Backup file already exists: \n\t> '{}'".format(sBkupFilePath)
-
-        _, bCopied = copyFile(self.pathname(), sBkupFilePath)
-        if not bCopied:
-            raise RuntimeError, "Backup file could not be copied: \n\t> '{}'".format(sBkupFilePath)
-
-        backupFile = self.library.getEntry(sBkupFilePath)
-
-        return backupFile
-
-    def abortPublish(self, sErrorMsg, backupFile=None, autoUnlock=False):
-
-        if backupFile:
-
-            sBkupFilePath = backupFile.pathname()
-            sCurFilePath = self.pathname()
-            bSameFiles = filecmp.cmp(sCurFilePath, sBkupFilePath, shallow=True)
-            if not bSameFiles:
-                copyFile(sBkupFilePath, sCurFilePath)
-
-            backupFile.remove()
-
-        if autoUnlock:
-            self.setLocked(False)
-
-        sMsg = "Publishing aborted: {0}".format(sErrorMsg)
-        logMsg(sMsg , warning=True)
-
-        return False
 
     def beginPublish(self, **kwargs):
 
         sComment = kwargs.pop("comment", "")
 
-        self.refresh()
+        bLockState = self.savedLockState()
 
-        bLockState = self.getPrpty("locked")
         if not kwargs.pop("autoLock", False):
 
             if not bLockState:
@@ -530,22 +536,27 @@ You have {0} version of '{1}':
 
             if not sComment:
                 self.setLocked(bLockState)
-                raise RuntimeError, "Please, provide a comment !"
+                raise RuntimeError, "Comment has NOT been provided !"
 
 
-        backupFile = self.createBackup(**kwargs)
-        if not backupFile:
-            self.setLocked(bLockState)
-            raise RuntimeError, "Could not create backup file !"
+        backupFile = None
+        v = self.latestBackupVersion()
+        if v == 0:
+            backupFile = self.getBackupFile(v)
+            if not backupFile.exists():
+                backupFile.createFromFile(self)
 
-        return sComment, backupFile, bLockState
+        self.currentVersion = v
 
-    def endPublish(self, sSrcFilePath, autoUnlock=False, saveSha1Key=False,
-                    sha1Key="", lockState="NoEntry"
-                    ):
+        return sComment, backupFile
+
+    def endPublish(self, sSrcFilePath, sComment, autoUnlock=False,
+                   saveSha1Key=False,
+                   sha1Key=""):
+
+        self.setPrpty("comment", sComment)
 
         if saveSha1Key:
-
             if not sha1Key:
                 sNewSha1Key = sha1HashFile(sSrcFilePath)
             else:
@@ -555,14 +566,124 @@ You have {0} version of '{1}':
 
         self.setPrpty("sourceFile", sSrcFilePath)
 
+        iNextVers = self.currentVersion + 1
+        self.setPrpty("currentVersion", iNextVers)
+
+        backupFile = self.createBackupFile(iNextVers)
+        if not backupFile:
+            raise RuntimeError, "Could not create backup file !"
+
+        self.restoreLockState(autoUnlock)
+
+    def abortPublish(self, sErrorMsg, backupFile=None, autoUnlock=False):
+
+        if backupFile:
+
+            sBkupFilePath = backupFile.pathname()
+            sCurFilePath = self.pathname()
+            bSameFiles = filecmp.cmp(sCurFilePath, sBkupFilePath, shallow=True)
+            if not bSameFiles:
+                copyFile(sBkupFilePath, sCurFilePath)
+
+            backupFile.suppress()
+
+        self.restoreLockState(autoUnlock)
+
+        sMsg = "Publishing aborted: {0}".format(sErrorMsg)
+        logMsg(sMsg , warning=True)
+
+        return False
+
+    def savedLockState(self):
+
+        bLockState = self.__savedLockState
+        if bLockState is not None:
+            return bLockState
+
+        return self.saveLockState()
+
+    def saveLockState(self):
+
+        self.refresh()
+        bLockState = self.getPrpty("locked")
+
+        self.__savedLockState = bLockState
+
+        return bLockState
+
+    def restoreLockState(self, autoUnlock=False):
+
+        bLockSate = self.__savedLockState
+
         if autoUnlock:
             self.setLocked(False)
-        elif lockState != "NoEntry":
-            self.setLocked(lockState)
+        elif bLockSate is not None:
+            self.setLocked(bLockSate)
+
+        self.__savedLockState = None
+
+        self.refresh()
+
+    def createBackupFile(self, version):
+
+        backupFile = self.getBackupFile(version)
+        if backupFile.exists():
+            raise RuntimeError("Backup file ALREADY exists: \n\t> '{}'"
+                               .format(backupFile.pathname()))
+
+        backupFile.createFromFile(self)
+        backupFile.copyValuesFrom(self)
+
+        return backupFile
+
+    def rollBackToVersion(self, version):
+
+        sMsg = "Rolling back to version: {}".format(version)
+        logMsg(sMsg , warning=True)
+
+        backupFile = self.getBackupFile(version)
+        if not backupFile.exists():
+            raise RuntimeError("Backup file does NOT exists: \n\t> '{}'"
+                               .format(backupFile.pathname()))
+
+        sCurFilePath = self.pathname()
+        _, bCopied = copyFile(backupFile.pathname(), sCurFilePath)
+        if not bCopied:
+            raise RuntimeError("File could not be copied: \n\t> '{}'"
+                               .format(sCurFilePath))
+
+        self.copyValuesFrom(backupFile)
+
+    def createFromFile(self, srcFile):
+
+        assert not self.exists(), "File already created: '{}'".format(self.pathname())
+        assert srcFile.isFile(), "No such file: '{}'".format(srcFile.pathname())
+
+        sCurDirPath = self.parent().pathname()
+        if not os.path.exists(sCurDirPath):
+            os.makedirs(sCurDirPath)
+
+        sCurFilePath = self.pathname()
+        _, bCopied = copyFile(srcFile.pathname(), sCurFilePath)
+        if not bCopied:
+            raise RuntimeError("File could not be copied: \n\t> '{}'"
+                               .format(sCurFilePath))
 
         self.refresh()
 
         return True
+
+    def getBackupFile(self, version):
+
+        sBkupFilename = self.nameFromVersion(version)
+        backupDir = self.getBackupDir()
+        sBkupFilePath = pathJoin(backupDir.pathname(), sBkupFilename)
+
+        return DrcFile(self.library, sBkupFilePath)
+
+    def getBackupDir(self):
+        sDirPath = pathJoin(self.parent().pathname(), "_version")
+        return DrcDir(self.library, sDirPath)
 
     def setLocked(self, bLock, **kwargs):
         logMsg(log='all')
@@ -576,7 +697,7 @@ You have {0} version of '{1}':
                     return True
             else:
                 if kwargs.get("warn", True):
-                    self.warnLockedBySomeone(sLockOwner)
+                    self.warnAlreadyLocked(sLockOwner)
                     return False
 
         if self.setPrpty('locked', bLock):
@@ -595,7 +716,7 @@ You have {0} version of '{1}':
 
         return ""
 
-    def warnLockedBySomeone(self, sLockOwner, **kwargs):
+    def warnAlreadyLocked(self, sLockOwner, **kwargs):
         sMsg = '{1}\n\n{2:^{0}}\n\n{3:^{0}}'.format(len(self.name) + 2, '"{0}"'.format(self.name), "locked by", (sLockOwner + " !").upper())
         confirmDialog(title="FILE LOCKED !"
                     , message=sMsg
@@ -605,6 +726,13 @@ You have {0} version of '{1}':
                     , dismissString="OK"
                     , icon=kwargs.pop("icon", "critical"))
         return
+
+    def nextVersionName(self):
+        v = padded(self.latestBackupVersion() + 1)
+        return pathSuffixed(self.name, '-v', v)
+
+    def nameFromVersion(self, i):
+        return pathSuffixed(self.name, '-v', padded(i))
 
     def suppress(self):
         parentDir = self.parent()

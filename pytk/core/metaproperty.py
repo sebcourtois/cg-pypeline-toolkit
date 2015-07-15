@@ -29,6 +29,7 @@ class MetaProperty(object):
         self.__writer = sWriter
 
         self.__storable = propertyDct.get("storable", True)
+        self.__copyable = propertyDct.get("copyable", False)
 
         self._metaobj = metaobj
 
@@ -84,6 +85,9 @@ class MetaProperty(object):
 
     def isStorable(self):
         return self.__storable
+
+    def isCopyable(self):
+        return self.__copyable
 
     def isValidValue(self, value):
         return True

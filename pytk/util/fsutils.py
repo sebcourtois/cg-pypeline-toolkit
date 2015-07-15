@@ -11,7 +11,8 @@ import hashlib
 from distutils import file_util
 
 from .sysutils import toUnicode, argToList
-#from .strutils import getIteration, padded
+# from .strutils import getIteration, padded
+from .logutils import logMsg
 
 def isDirStat(statobj):
     return stat.S_ISDIR(statobj.st_mode)
@@ -32,6 +33,15 @@ def pathJoin(*args):
 
 def pathResolve(p):
     return pathNorm(osp.expanduser(osp.expandvars(p)))
+
+def pathSuffixed(sFileNameOrPath, *suffixes):
+
+    sRootPath, sExt = os.path.splitext(sFileNameOrPath)
+
+    sJoinList = [sRootPath]
+    sJoinList.extend(suffixes)
+
+    return "".join(sJoinList) + sExt
 
 def ignorePatterns(*patterns):
     """Function that can be used as iterPaths() ignore parameters.
@@ -95,6 +105,8 @@ def copyFile(sSrcFilePath, sDestPath, **kwargs):
     if osp.normcase(sSrcFilePath) == osp.normcase(sDestPath):
         raise ValueError, "Path of source and destination files are the same."
 
+    logMsg(u"Copying '{}'\n    >> '{}'\n".format(sSrcFilePath, sDestPath))
+
     return file_util.copy_file(sSrcFilePath, sDestPath, **kwargs)
 
 def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
@@ -106,11 +118,13 @@ def copyTree(in_sSrcRootDir, in_sDestRootDir, **kwargs):
 
     sReplaceExtDct = kwargs.pop("replaceExtensions", kwargs.pop("replaceExts", {}))
     if not isinstance(sReplaceExtDct, dict):
-        raise TypeError, '"replaceExtensions" kwarg expects {0} but gets {1}.'.format(dict, type(sReplaceExtDct))
+        raise TypeError('"replaceExtensions" kwarg expects {0} but gets {1}.'
+                        .format(dict, type(sReplaceExtDct)))
 
     sEncryptExtList = kwargs.pop("encryptExtensions", kwargs.pop("encryptExts", []))
     if not isinstance(sEncryptExtList, list):
-        raise TypeError, '"encryptExtensions" kwarg expects {0} but gets {1}.'.format(list, type(sEncryptExtList))
+        raise TypeError('"encryptExtensions" kwarg expects {0} but gets {1}.'
+                        .format(list, type(sEncryptExtList)))
 
     if sEncryptExtList:
         raise NotImplementedError, "Sorry, feature has been removed."
@@ -264,29 +278,3 @@ def sha1HashFile(sFilePath, chunk_size=1024 * 8):
             h.update(chunk)
 
     return h.hexdigest()
-
-
-def getLatestFile(sBackupDirPath, sTargetFileName):
-
-    lastModifTime = 0
-    sLatestFile = ""
-
-    sBaseFileName, _ = osp.splitext(sTargetFileName)
-
-    for sFileName in os.listdir(sBackupDirPath):
-
-        if not sFileName.startswith(sBaseFileName):
-            continue
-
-        sFilePath = pathJoin(sBackupDirPath, sFileName)
-
-        if osp.isdir(sFilePath):
-            continue
-
-        modifTime = osp.getmtime(sFilePath)
-
-        if modifTime > lastModifTime:
-            lastModifTime = modifTime
-            sLatestFile = sFileName
-
-    return sLatestFile

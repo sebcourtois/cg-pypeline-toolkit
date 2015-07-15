@@ -89,6 +89,10 @@ class DrcLibrary(DrcEntry):
 
         return entryCls(self, fileInfo)
 
+    def contains(self, sEntryPath):
+        sLibPath = self.pathname()
+        return (len(sEntryPath) >= len(sLibPath)) and sEntryPath.startswith(sLibPath)
+
     def getHomonym(self, sSpace):
 
         if self.space == sSpace:

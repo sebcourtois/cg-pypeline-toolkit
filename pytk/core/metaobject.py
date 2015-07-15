@@ -3,7 +3,7 @@ from pytk.util.logutils import logMsg
 from pytk.util.sysutils import argToTuple
 from pytk.util.sysutils import toStr
 # from pytk.util.sysutils import getCaller
-from pytk.util.strutils import upperFirst
+from pytk.util.strutils import upperFirst, lowerFirst
 
 from .metaproperty import BasePropertyFactory
 
@@ -61,14 +61,14 @@ class MetaObject(object):
         else:
             return getattr(self, sProperty, default)
 
-    def setPrpty(self, sProperty, value, writeValue=True):
+    def setPrpty(self, sProperty, value, write=True):
         logMsg(self.__class__.__name__, log='all')
 
         metaProperty = self.__metaProperties[sProperty]
 
         if metaProperty.isValidValue(value):
 
-            if writeValue:
+            if write:
                 if metaProperty.isWritable():
                     if not metaProperty.write(value):
                         return False
@@ -118,21 +118,23 @@ class MetaObject(object):
         else:
             return metaProperty.castValue(value)
 
-    def __writeAllValues(self, customPrptyDctItems=None):
+    def __writeAllValues(self, customPropertyNames=None):
         logMsg(self.__class__.__name__, log='all')
 
         cls = self.__class__
 
-        if customPrptyDctItems is None:
-            customPrptyDctItems = cls.propertiesDctItems
+        if customPropertyNames is None:
+            sPropertyList = (s for s, _ in cls.propertiesDctItems)
+        else:
+            sPropertyList = customPropertyNames
 
-        for sProperty, _ in customPrptyDctItems:
+        for sProperty in sPropertyList:
 
             value = getattr(self, sProperty)
 
             bJustSetPrpty = False
 
-            sSetFnc = "".join(("set", sProperty[0].upper(), sProperty[1:]))
+            sSetFnc = "set" + upperFirst(sProperty)
             setFnc = getattr(self, sSetFnc, None)
 
             msg = "Setting {0}.{1} to {2}( {3} ) using {4}".format(
@@ -155,10 +157,14 @@ class MetaObject(object):
 
             if bJustSetPrpty:
                 metaProperty = self.__metaProperties[sProperty]
-                bSuccess = metaProperty.write(value)
+                if metaProperty.isWritable():
+                    bSuccess = metaProperty.write(value)
+                else:
+                    logMsg("{} is NOT writable !".format(metaProperty), warning=True)
+                    bSuccess = True
 
             if not bSuccess:
-                logMsg("Failed " + msg, warning=True)
+                logMsg("Failed " + lowerFirst(msg), warning=True)
 
     def writeAllValues(self, customPrptyDctItems=None):
 
@@ -167,6 +173,23 @@ class MetaObject(object):
             return self.__writeAllValues(customPrptyDctItems)
         finally:
             self._writingValues_ = False
+
+    def copyValuesFrom(self, srcobj):
+
+        sPropertyList = []
+
+        for sProperty, _ in self.__class__.propertiesDctItems:
+
+            srcProperty = srcobj.metaProperty(sProperty)
+            if not srcProperty:
+                continue
+
+            if srcProperty.isCopyable():
+                value = srcProperty.getattr_()
+                self.setPrpty(sProperty, value, write=False)
+                sPropertyList.append(sProperty)
+
+        return self.writeAllValues(sPropertyList)
 
     def initPropertiesFromKwargs(self, **kwargs):
         logMsg(self.__class__.__name__, log='all')
@@ -187,7 +210,7 @@ class MetaObject(object):
                     value = kwargs.pop(metaProperty.name)
                 except KeyError:
                     msg = '{0} needs "{1}" kwarg at least'.format(cls.__name__, metaProperty.name)
-                    raise TypeError, msg
+                    raise TypeError(msg)
 
                 else:
                     setattr(self, metaProperty.name, value)
