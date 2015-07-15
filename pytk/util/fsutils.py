@@ -36,12 +36,15 @@ def pathResolve(p):
 
 def pathSuffixed(sFileNameOrPath, *suffixes):
 
-    sRootPath, sExt = os.path.splitext(sFileNameOrPath)
+    sRootPath, sExt = osp.splitext(sFileNameOrPath)
 
     sJoinList = [sRootPath]
     sJoinList.extend(suffixes)
 
     return "".join(sJoinList) + sExt
+
+def pathRel(*args):
+    return pathNorm(osp.relpath(*args))
 
 def ignorePatterns(*patterns):
     """Function that can be used as iterPaths() ignore parameters.

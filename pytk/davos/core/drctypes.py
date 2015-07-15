@@ -1,5 +1,6 @@
 
 import os
+import os.path as osp
 import re
 from datetime import datetime
 import filecmp
@@ -10,7 +11,7 @@ from pytk.core.dialogs import confirmDialog
 
 from pytk.util.logutils import logMsg
 from pytk.util.qtutils import toQFileInfo
-from pytk.util.fsutils import pathJoin, pathSuffixed
+from pytk.util.fsutils import pathJoin, pathSuffixed, pathRel
 from pytk.util.fsutils import copyFile
 from pytk.util.fsutils import sha1HashFile
 from pytk.util.qtutils import setWaitCursor
@@ -70,7 +71,7 @@ class DrcEntry(DrcMetaObject):
         super(DrcEntry, self).loadData()
 
         sEntryName = self.name
-        self.baseName, self.suffix = os.path.splitext(sEntryName)
+        self.baseName, self.suffix = osp.splitext(sEntryName)
         self.label = sEntryName
 
         self._remember()
@@ -111,8 +112,8 @@ class DrcEntry(DrcMetaObject):
         for primeItem in primePrpty.viewItems:
             primeItem.updateRow()
 
-    def parent(self):
-        return DrcDir(self.library, self._qfileinfo.absolutePath())
+    def parentDir(self):
+        return self.library.getEntry(self.dirPath())
 
     def loadChildren(self):
 
@@ -133,7 +134,7 @@ class DrcEntry(DrcMetaObject):
         fileInfo = self._qfileinfo
 
         if not fileInfo.exists():
-            self._forget(parent, recursive=True)
+            self._forget(parent=parent, recursive=True)
         else:
             self.loadData(fileInfo)
             self.updateModelRow()
@@ -141,6 +142,7 @@ class DrcEntry(DrcMetaObject):
             if children and self.childrenLoaded:
 
                 oldChildren = self.loadedChildren[:]
+
                 for child in self.iterChildren():
                     if child not in oldChildren:
                         child.addModelRow(self)
@@ -162,24 +164,35 @@ class DrcEntry(DrcMetaObject):
     def hasChildren(self):
         return False
 
-    def pathname(self):
+    def dirPath(self):
+        return self._qfileinfo.absolutePath()
+
+    def absPath(self):
         return self._qfileinfo.absoluteFilePath()
+
+    def relPath(self):
+        return self.library.relFromAbsPath(self.absPath())
+
+    def relFromAbsPath(self, sAbsPath):
+        return pathRel(sAbsPath, self.absPath())
 
     def getIconData(self):
         return self._qfileinfo
 
     def sendToTrash(self):
-        send2trash(self.pathname())
+        send2trash(self.absPath())
         self.refresh(children=True)
 
     def _remember(self):
 
-        key = self.pathname()
+        key = self.relPath()
+        # print '"{}"'.format(self.relPath())
         loadedEntriesCache = self.library.loadedEntriesCache
 
         if key in loadedEntriesCache:
-            logMsg("Already loaded : {0}.".format(self), log="debug")
+            logMsg("Already cached: {0}.".format(self), log="debug")
         else:
+            logMsg("Caching: {0}.".format(self), log="debug")
             loadedEntriesCache[key] = self
 
     def _forget(self, parent=None, **kwargs):
@@ -187,28 +200,27 @@ class DrcEntry(DrcMetaObject):
 
         bRecursive = kwargs.get("recursive", True)
 
-        if bRecursive:
+        self.__forgetOne(parent)
 
+        if bRecursive:
             for child in self.loadedChildren[:]:
                 child._forget(parent, **kwargs)
-
-        return self.__forgetOne(parent)
 
 
     def __forgetOne(self, parent=None):
 
-        key = self.pathname()
+        key = self.relPath()
         loadedEntriesCache = self.library.loadedEntriesCache
 
         if key not in loadedEntriesCache:
-            logMsg("Already dropped : {0}.".format(self), log="debug")
+            logMsg("Already dropped: {0}.".format(self), log="debug")
         else:
-            parentDir = parent if parent else self.parent()
-            if parentDir:
+            parentDir = parent if parent else self.parentDir()
+            if parentDir and parentDir.loadedChildren:
+                logMsg("Dropping {} from {}".format(self, parentDir), log="debug")
                 parentDir.loadedChildren.remove(self)
 
-            del self.loadedChildren[:]
-
+            # del self.loadedChildren[:]
             self.delModelRow()
 
             return loadedEntriesCache.pop(key)
@@ -234,7 +246,7 @@ class DrcEntry(DrcMetaObject):
         if not isinstance(other, self.__class__):
             return cmp(1 , None)
 
-        return cmp(self.pathname() , other.pathname())
+        return cmp(self.absPath() , other.absPath())
 
 class DrcDir(DrcEntry):
 
@@ -248,16 +260,16 @@ class DrcDir(DrcEntry):
         curLib = self.library
         homoLib = curLib.getHomonym(sSpace)
 
-        sHomoLibPath = homoLib.pathname()
-        sHomoPath = re.sub("^" + curLib.pathname(), sHomoLibPath, self.pathname())
+        sHomoLibPath = homoLib.absPath()
+        sHomoPath = re.sub("^" + curLib.absPath(), sHomoLibPath, self.absPath())
 
-        if not os.path.exists(sHomoPath) and create:
+        if not osp.exists(sHomoPath) and create:
             os.makedirs(sHomoPath)
 
         return homoLib.getEntry(sHomoPath)
 
     def suppress(self):
-        parentDir = self.parent()
+        parentDir = self.parentDir()
         if parentDir._qdir.rmdir(self.name):
             self.refresh(children=True, parent=parentDir)
 
@@ -269,7 +281,6 @@ class DrcFile(DrcEntry):
     classUiPriority = 2
 
     propertiesDctItems = DrcFileProperties
-
     propertiesDct = dict(propertiesDctItems)
 
     def __init__(self, drcLibrary, drcPath=None):
@@ -311,15 +322,15 @@ class DrcFile(DrcEntry):
 
         self.refresh()
 
-        sPubFilePath = self.pathname()
+        sPubFilePath = self.absPath()
 
         assert self.isFile(), "File does NOT exist !"
         assert self.isPublic(), "File is NOT public !"
 
-        pubDir = self.parent()
+        pubDir = self.parentDir()
         privDir = pubDir.getHomonym('private', create=True)
 
-        sPrivDirPath = privDir.pathname()
+        sPrivDirPath = privDir.absPath()
 
         # adding version suffixes to filename
         sVersionedName = self.nextVersionName()
@@ -336,20 +347,20 @@ class DrcFile(DrcEntry):
         bForce = kwargs.pop("force", False)
         bDryRun = kwargs.get("dry_run", False)
 
-        if not os.path.exists(sPrivDirPath):
+        if not osp.exists(sPrivDirPath):
             if not bDryRun:
                 os.makedirs(sPrivDirPath)
 
         bSameFiles = False
 
-        if (not bForce) and os.path.exists(sPrivFilePath):
+        if (not bForce) and osp.exists(sPrivFilePath):
 
             bSameFiles = filecmp.cmp(sPubFilePath, sPrivFilePath, shallow=True)
 
             if not bSameFiles:
 
-                privFileTime = datetime.fromtimestamp(os.path.getmtime(sPrivFilePath))
-                pubFileTime = datetime.fromtimestamp(os.path.getmtime(sPubFilePath))
+                privFileTime = datetime.fromtimestamp(osp.getmtime(sPrivFilePath))
+                pubFileTime = datetime.fromtimestamp(osp.getmtime(sPubFilePath))
 
                 sState = "an OLDER" if privFileTime < pubFileTime else "a NEWER"
 
@@ -385,9 +396,9 @@ You have {0} version of '{1}':
 
         sOtherSha1Key = ""
 
-        sCurFilePath = self.pathname()
+        sCurFilePath = self.absPath()
 
-        if os.path.normcase(sOtherFilePath) == os.path.normcase(sCurFilePath):
+        if osp.normcase(sOtherFilePath) == osp.normcase(sCurFilePath):
             return False, sOtherSha1Key
 
         sOwnSha1Key = self.getPrpty("hashKey")
@@ -404,12 +415,12 @@ You have {0} version of '{1}':
         assert self.isFile(), "File does NOT exist !"
         assert self.isPrivate(), "File must live in a PRIVATE library !"
 
-        privDir = self.parent()
+        privDir = self.parentDir()
         pubDir = privDir.getHomonym('public')
 
-        sPrivFilename , sExt = os.path.splitext(self.name)
+        sPrivFilename , sExt = osp.splitext(self.name)
 
-        sPubDirPath = pubDir.pathname()
+        sPubDirPath = pubDir.absPath()
         sPubFilename = sPrivFilename.split('-v')[0] + sExt
         sPubFilePath = pathJoin(sPubDirPath, sPubFilename)
 
@@ -420,7 +431,7 @@ You have {0} version of '{1}':
         assert self.isFile(), "File does NOT exist !"
         assert self.isPublic(), "File is NOT public !"
 
-        pubDir = self.parent()
+        pubDir = self.parentDir()
         privDir = pubDir.getHomonym("private")
         return privDir
 
@@ -442,7 +453,7 @@ You have {0} version of '{1}':
         if not sEntryList:
             return None
 
-        sFilePath = pathJoin(backupDir.pathname(), sEntryList[0])
+        sFilePath = pathJoin(backupDir.absPath(), sEntryList[0])
         return self.library.getEntry(sFilePath)
 
     def assertFilePublishable(self, privFile):
@@ -472,7 +483,7 @@ You have {0} version of '{1}':
 
         self.saveLockState()
 
-        sSrcFilePath = srcFile.pathname()
+        sSrcFilePath = srcFile.absPath()
 
         bDiffers, sSrcSha1Key = self.differsFrom(sSrcFilePath)
         if not bDiffers:
@@ -488,7 +499,7 @@ You have {0} version of '{1}':
             raise
 
         try:
-            copyFile(sSrcFilePath, self.pathname())
+            copyFile(sSrcFilePath, self.absPath())
         except Exception, e:
             self.abortPublish(e, backupFile, bAutoUnlock)
             raise
@@ -579,8 +590,8 @@ You have {0} version of '{1}':
 
         if backupFile:
 
-            sBkupFilePath = backupFile.pathname()
-            sCurFilePath = self.pathname()
+            sBkupFilePath = backupFile.absPath()
+            sCurFilePath = self.absPath()
             bSameFiles = filecmp.cmp(sCurFilePath, sBkupFilePath, shallow=True)
             if not bSameFiles:
                 copyFile(sBkupFilePath, sCurFilePath)
@@ -629,7 +640,7 @@ You have {0} version of '{1}':
         backupFile = self.getBackupFile(version)
         if backupFile.exists():
             raise RuntimeError("Backup file ALREADY exists: \n\t> '{}'"
-                               .format(backupFile.pathname()))
+                               .format(backupFile.absPath()))
 
         backupFile.createFromFile(self)
         backupFile.copyValuesFrom(self)
@@ -644,10 +655,10 @@ You have {0} version of '{1}':
         backupFile = self.getBackupFile(version)
         if not backupFile.exists():
             raise RuntimeError("Backup file does NOT exists: \n\t> '{}'"
-                               .format(backupFile.pathname()))
+                               .format(backupFile.absPath()))
 
-        sCurFilePath = self.pathname()
-        _, bCopied = copyFile(backupFile.pathname(), sCurFilePath)
+        sCurFilePath = self.absPath()
+        _, bCopied = copyFile(backupFile.absPath(), sCurFilePath)
         if not bCopied:
             raise RuntimeError("File could not be copied: \n\t> '{}'"
                                .format(sCurFilePath))
@@ -656,15 +667,15 @@ You have {0} version of '{1}':
 
     def createFromFile(self, srcFile):
 
-        assert not self.exists(), "File already created: '{}'".format(self.pathname())
-        assert srcFile.isFile(), "No such file: '{}'".format(srcFile.pathname())
+        assert not self.exists(), "File already created: '{}'".format(self.absPath())
+        assert srcFile.isFile(), "No such file: '{}'".format(srcFile.absPath())
 
-        sCurDirPath = self.parent().pathname()
-        if not os.path.exists(sCurDirPath):
+        sCurDirPath = self.dirPath()
+        if not osp.exists(sCurDirPath):
             os.makedirs(sCurDirPath)
 
-        sCurFilePath = self.pathname()
-        _, bCopied = copyFile(srcFile.pathname(), sCurFilePath)
+        sCurFilePath = self.absPath()
+        _, bCopied = copyFile(srcFile.absPath(), sCurFilePath)
         if not bCopied:
             raise RuntimeError("File could not be copied: \n\t> '{}'"
                                .format(sCurFilePath))
@@ -677,13 +688,13 @@ You have {0} version of '{1}':
 
         sBkupFilename = self.nameFromVersion(version)
         backupDir = self.getBackupDir()
-        sBkupFilePath = pathJoin(backupDir.pathname(), sBkupFilename)
+        sBkupFilePath = pathJoin(backupDir.absPath(), sBkupFilename)
 
-        return DrcFile(self.library, sBkupFilePath)
+        return self.library.getFile(sBkupFilePath)
 
     def getBackupDir(self):
-        sDirPath = pathJoin(self.parent().pathname(), "_version")
-        return DrcDir(self.library, sDirPath)
+        sDirPath = pathJoin(self.dirPath(), "_version")
+        return self.library.getDir(sDirPath)
 
     def setLocked(self, bLock, **kwargs):
         logMsg(log='all')
@@ -735,7 +746,7 @@ You have {0} version of '{1}':
         return pathSuffixed(self.name, '-v', padded(i))
 
     def suppress(self):
-        parentDir = self.parent()
+        parentDir = self.parentDir()
         if parentDir._qdir.remove(self.name):
             self.refresh(children=True, parent=parentDir)
 

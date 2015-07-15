@@ -4,7 +4,7 @@ from PySide import QtGui
 from pytk.core.itemviews.basecontextmenu import BaseContextMenu
 from pytk.core.dialogs import confirmDialog
 
-from pytk.util.sysutils import toStr
+# from pytk.util.sysutils import toStr
 from pytk.util.logutils import logMsg
 from pytk.util.fsutils import  pathSuffixed
 
@@ -78,12 +78,19 @@ class BrowserContextMenu(BaseContextMenu):
     setFilesLocked.auth_types = [ "DrcFile" ]
 
 
-    # @forceLog(log='all')
+    # @forceLog(log="debug")
     def refreshItems(self, *itemList, **kwargs):
 
         for item in itemList:
             item._metaobj.refresh(children=True)
 
+#         proj = self.model()._metamodel
+#         for lib in proj.loadedLibraries.itervalues():
+#             print ""
+#             for d in lib.loadedEntriesCache.iteritems():
+#                 print d
+
+    # @forceLog(log="debug")
     def removeItems(self, *itemList):
 
         entryList = tuple(item._metaobj for item in itemList)
@@ -121,7 +128,7 @@ class BrowserContextMenu(BaseContextMenu):
         sNameFilter = pathSuffixed(drcFile.nextVersionName(), '*').replace(' ', '?')
         sSrcFilePath, _ = QtGui.QFileDialog.getOpenFileName(None,
                                                             "You know what to do...",
-                                                            privDir.pathname(),
+                                                            privDir.absPath(),
                                                             sNameFilter
                                                             )
 

@@ -36,7 +36,7 @@ class DrcLibrary(DrcEntry):
             self._itemmodel = self.project._itemmodel
 
         super(DrcLibrary, self).loadData(fileInfo)
-        assert self.isDir(), "<{}> No such directory: '{}'".format(self, self.pathname())
+        assert self.isDir(), "<{}> No such directory: '{}'".format(self, self.absPath())
 
         self.label = self.fullName
 
@@ -56,42 +56,51 @@ class DrcLibrary(DrcEntry):
     @staticmethod
     def listUiClasses():
         return sorted((cls for (_, cls) in listClassesFromModule(drctypes.__name__)
-                                if hasattr(cls, "classUiPriority")), key=lambda c: c.classUiPriority)
+                            if hasattr(cls, "classUiPriority")), key=lambda c: c.classUiPriority)
 
-    def getEntry(self, pathOrInfo):
+    def getDir(self, pathOrInfo):
+        return self.getEntry(pathOrInfo, forceType=DrcDir)
+
+    def getFile(self, pathOrInfo):
+        return self.getEntry(pathOrInfo, forceType=DrcFile)
+
+    def getEntry(self, pathOrInfo, forceType=None):
         logMsg(log="all")
 
         fileInfo = None
         if isinstance(pathOrInfo, QFileInfo):
-            sEntryPath = pathOrInfo.absoluteFilePath()
+            sAbsPath = pathOrInfo.absoluteFilePath()
             fileInfo = pathOrInfo
         elif isinstance(pathOrInfo, basestring):
-            sEntryPath = pathNorm(pathOrInfo)
+            sAbsPath = pathNorm(pathOrInfo)
         else:
-            raise TypeError(
-                    "argument 'pathOrInfo' must be of type <QFileInfo> or <basestring>. Got {0}."
-                    .format(type(pathOrInfo)))
+            raise TypeError("argument 'pathOrInfo' must be of type <QFileInfo> or <basestring>. Got {0}."
+                            .format(type(pathOrInfo)))
 
-        drcEntry = self.loadedEntriesCache.get(sEntryPath)
+        sRelPath = self.relFromAbsPath(sAbsPath)
+        drcEntry = self.loadedEntriesCache.get(sRelPath)
         if drcEntry:
             drcEntry.loadData(drcEntry._qfileinfo)
             return drcEntry if drcEntry.exists() else None
 
         if not fileInfo:
-            fileInfo = toQFileInfo(sEntryPath)
+            fileInfo = toQFileInfo(sAbsPath)
 
-        if fileInfo.isDir():
-            entryCls = DrcDir
-        elif fileInfo.isFile():
-            entryCls = DrcFile
+        if forceType is not None:
+            cls = forceType
         else:
-            return None
+            if fileInfo.isDir():
+                cls = DrcDir
+            elif fileInfo.isFile():
+                cls = DrcFile
+            else:
+                return None
 
-        return entryCls(self, fileInfo)
+        return cls(self, fileInfo)
 
-    def contains(self, sEntryPath):
-        sLibPath = self.pathname()
-        return (len(sEntryPath) >= len(sLibPath)) and sEntryPath.startswith(sLibPath)
+    def contains(self, sAbsPath):
+        sLibPath = self.absPath()
+        return (len(sAbsPath) >= len(sLibPath)) and sAbsPath.startswith(sLibPath)
 
     def getHomonym(self, sSpace):
 
