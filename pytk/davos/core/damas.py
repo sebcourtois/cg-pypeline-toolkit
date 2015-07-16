@@ -76,7 +76,7 @@ class http_connection(object) :
         @param {String} id_ the internal node index to delete
         @returns {Boolean} True on success, False otherwise
         '''
-        r = requests.delete(self.serverURL, id_)
+        r = requests.delete(self.serverURL + '/' + id_)
         return r.status_code == 200
 
     def search(self, query) :

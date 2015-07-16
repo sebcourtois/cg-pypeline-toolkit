@@ -22,7 +22,9 @@ from .properties import DrcMetaObject
 from .properties import DrcEntryProperties, DrcFileProperties
 from .utils import promptForComment
 from .utils import versionFromName
-from .utils import LockFile
+from .locktypes import LockFile
+from .dbtypes import DbSearchError, DbReadError, DbCreateError, DbNode
+
 
 class DrcEntry(DrcMetaObject):
 
@@ -31,24 +33,28 @@ class DrcEntry(DrcMetaObject):
     propertiesDctItems = DrcEntryProperties
     propertiesDct = dict(propertiesDctItems)
 
-    primaryProperty = propertiesDctItems[0][0] # defines which property will be displayed as a Tree in UI.
+    # defines which property will be displayed as a Tree in UI.
+    primaryProperty = propertiesDctItems[0][0]
 
-    def __init__(self, drcLibrary, drcPath=None):
+
+    def __init__(self, drcLibrary, absPathOrInfo=None):
 
         self.library = drcLibrary
         self._qfileinfo = None
         self._qdir = None
+        self._dbnode = None
 
         self.loadedChildren = []
         self.childrenLoaded = False
 
         super(DrcEntry, self).__init__()
 
-        fileInfo = toQFileInfo(drcPath)
+        fileInfo = toQFileInfo(absPathOrInfo)
         if fileInfo:
 
             if id(self) != id(drcLibrary):
-                msg = "Path is NOT part of {}: '{}'".format(drcLibrary, drcPath)
+                sAbsPath = fileInfo.filePath()
+                msg = "Path is NOT part of {}: '{}'".format(drcLibrary, sAbsPath)
                 assert drcLibrary.contains(fileInfo.absoluteFilePath()), msg
 
             self.loadData(fileInfo)
@@ -78,42 +84,8 @@ class DrcEntry(DrcMetaObject):
 
         fileInfo.setCaching(False)
 
-    def addModelRow(self, parent):
-
-        model = self.library._itemmodel
-        if not model:
-            return
-
-        parentPrpty = parent.metaProperty(model.primaryProperty)
-
-        for parentItem in parentPrpty.viewItems:
-            model.loadRowItems(self, parentItem)
-
-    def delModelRow(self):
-
-        model = self.library._itemmodel
-        primePrpty = self.metaProperty(model.primaryProperty)
-
-        for primeItem in primePrpty.viewItems:
-
-            parentItem = primeItem.parent()
-            parentItem.removeRow(primeItem.row())
-
-        primePrpty.viewItems = []
-
-    def updateModelRow(self):
-        logMsg(log='all')
-
-        model = self.library._itemmodel
-        if not model:
-            return
-
-        primePrpty = self.metaProperty(model.primaryProperty)
-        for primeItem in primePrpty.viewItems:
-            primeItem.updateRow()
-
     def parentDir(self):
-        return self.library.getEntry(self.dirPath())
+        return self.library.getEntry(self.relDirPath())
 
     def loadChildren(self):
 
@@ -164,8 +136,11 @@ class DrcEntry(DrcMetaObject):
     def hasChildren(self):
         return False
 
-    def dirPath(self):
+    def absDirPath(self):
         return self._qfileinfo.absolutePath()
+
+    def relDirPath(self):
+        return self.library.relFromAbsPath(self.absDirPath())
 
     def absPath(self):
         return self._qfileinfo.absoluteFilePath()
@@ -176,8 +151,86 @@ class DrcEntry(DrcMetaObject):
     def relFromAbsPath(self, sAbsPath):
         return pathRel(sAbsPath, self.absPath())
 
+    def getDbNode(self):
+
+        data = {
+                "library":self.library.fullName,
+                "dir_path": self.relDirPath(),
+                "name":self.name,
+                }
+
+        sQuery = " ".join("{}:{}".format(k, v) for k, v in data.iteritems())
+
+        recs = self._db.search(sQuery)
+        if recs is None:
+            raise DbSearchError('Failed to process the query: "{}"'
+                                .format(sQuery))
+
+        elif len(recs) > 1:
+            raise ValueError("Several nodes found: {}".format(recs))
+        else:
+            if not recs:
+                return None
+
+            nodeId = recs[0]
+            recs = self._db.read(nodeId)
+            if recs is None:
+                raise DbReadError('Failed to get node: {}'
+                                    .format(nodeId))
+
+            return DbNode(self._db, recs[0])
+
+    def createDbNode(self):
+
+        data = {
+                "library":self.library.fullName,
+                "dir_path": self.relDirPath(),
+                "name":self.name,
+                }
+
+        rec = self._db.create(data)
+        if rec is None:
+            raise DbCreateError("Failed to create: {}".format(data))
+
+        return DbNode(self._db, rec)
+
+    def addModelRow(self, parent):
+
+        model = self.library._itemmodel
+        if not model:
+            return
+
+        parentPrpty = parent.metaProperty(model.primaryProperty)
+
+        for parentItem in parentPrpty.viewItems:
+            model.loadRowItems(self, parentItem)
+
+    def delModelRow(self):
+
+        model = self.library._itemmodel
+        primePrpty = self.metaProperty(model.primaryProperty)
+
+        for primeItem in primePrpty.viewItems:
+
+            parentItem = primeItem.parent()
+            parentItem.removeRow(primeItem.row())
+
+        primePrpty.viewItems = []
+
+    def updateModelRow(self):
+        logMsg(log='all')
+
+        model = self.library._itemmodel
+        if not model:
+            return
+
+        primePrpty = self.metaProperty(model.primaryProperty)
+        for primeItem in primePrpty.viewItems:
+            primeItem.updateRow()
+
     def getIconData(self):
         return self._qfileinfo
+
 
     def sendToTrash(self):
         send2trash(self.absPath())
@@ -205,7 +258,6 @@ class DrcEntry(DrcMetaObject):
         if bRecursive:
             for child in self.loadedChildren[:]:
                 child._forget(parent, **kwargs)
-
 
     def __forgetOne(self, parent=None):
 
@@ -248,12 +300,13 @@ class DrcEntry(DrcMetaObject):
 
         return cmp(self.absPath() , other.absPath())
 
+
 class DrcDir(DrcEntry):
 
     classUiPriority = 1
 
-    def __init__(self, drcLibrary, drcPath=None):
-        super(DrcDir, self).__init__(drcLibrary, drcPath)
+    def __init__(self, drcLibrary, absPathOrInfo=None):
+        super(DrcDir, self).__init__(drcLibrary, absPathOrInfo)
 
     def getHomonym(self, sSpace, create=False):
 
@@ -276,6 +329,7 @@ class DrcDir(DrcEntry):
     def hasChildren(self):
         return True
 
+
 class DrcFile(DrcEntry):
 
     classUiPriority = 2
@@ -283,8 +337,8 @@ class DrcFile(DrcEntry):
     propertiesDctItems = DrcFileProperties
     propertiesDct = dict(propertiesDctItems)
 
-    def __init__(self, drcLibrary, drcPath=None):
-        super(DrcFile, self).__init__(drcLibrary, drcPath)
+    def __init__(self, drcLibrary, absPathOrInfo=None):
+        super(DrcFile, self).__init__(drcLibrary, absPathOrInfo)
 
         self.publishAsserted = False
         self.__savedLockState = None
@@ -551,13 +605,13 @@ You have {0} version of '{1}':
 
 
         backupFile = None
-        v = self.latestBackupVersion()
-        if v == 0:
-            backupFile = self.getBackupFile(v)
+        version = self.latestBackupVersion()
+        if version == 0:
+            backupFile = self._weakBackupFile(version)
             if not backupFile.exists():
                 backupFile.createFromFile(self)
 
-        self.currentVersion = v
+        self.currentVersion = version
 
         return sComment, backupFile
 
@@ -637,7 +691,7 @@ You have {0} version of '{1}':
 
     def createBackupFile(self, version):
 
-        backupFile = self.getBackupFile(version)
+        backupFile = self._weakBackupFile(version)
         if backupFile.exists():
             raise RuntimeError("Backup file ALREADY exists: \n\t> '{}'"
                                .format(backupFile.absPath()))
@@ -652,7 +706,7 @@ You have {0} version of '{1}':
         sMsg = "Rolling back to version: {}".format(version)
         logMsg(sMsg , warning=True)
 
-        backupFile = self.getBackupFile(version)
+        backupFile = self._weakBackupFile(version)
         if not backupFile.exists():
             raise RuntimeError("Backup file does NOT exists: \n\t> '{}'"
                                .format(backupFile.absPath()))
@@ -670,7 +724,7 @@ You have {0} version of '{1}':
         assert not self.exists(), "File already created: '{}'".format(self.absPath())
         assert srcFile.isFile(), "No such file: '{}'".format(srcFile.absPath())
 
-        sCurDirPath = self.dirPath()
+        sCurDirPath = self.absDirPath()
         if not osp.exists(sCurDirPath):
             os.makedirs(sCurDirPath)
 
@@ -684,17 +738,11 @@ You have {0} version of '{1}':
 
         return True
 
-    def getBackupFile(self, version):
-
-        sBkupFilename = self.nameFromVersion(version)
-        backupDir = self.getBackupDir()
-        sBkupFilePath = pathJoin(backupDir.absPath(), sBkupFilename)
-
-        return self.library.getFile(sBkupFilePath)
-
     def getBackupDir(self):
-        sDirPath = pathJoin(self.dirPath(), "_version")
-        return self.library.getDir(sDirPath)
+        return self.library.getEntry(self.backupDirPath())
+
+    def backupDirPath(self):
+        return pathJoin(self.absDirPath(), "_version")
 
     def setLocked(self, bLock, **kwargs):
         logMsg(log='all')
@@ -708,7 +756,7 @@ You have {0} version of '{1}':
                     return True
             else:
                 if kwargs.get("warn", True):
-                    self.warnAlreadyLocked(sLockOwner)
+                    self.__warnAlreadyLocked(sLockOwner)
                     return False
 
         if self.setPrpty('locked', bLock):
@@ -727,17 +775,6 @@ You have {0} version of '{1}':
 
         return ""
 
-    def warnAlreadyLocked(self, sLockOwner, **kwargs):
-        sMsg = '{1}\n\n{2:^{0}}\n\n{3:^{0}}'.format(len(self.name) + 2, '"{0}"'.format(self.name), "locked by", (sLockOwner + " !").upper())
-        confirmDialog(title="FILE LOCKED !"
-                    , message=sMsg
-                    , button=["OK"]
-                    , defaultButton="OK"
-                    , cancelButton="OK"
-                    , dismissString="OK"
-                    , icon=kwargs.pop("icon", "critical"))
-        return
-
     def nextVersionName(self):
         v = padded(self.latestBackupVersion() + 1)
         return pathSuffixed(self.name, '-v', v)
@@ -750,3 +787,21 @@ You have {0} version of '{1}':
         if parentDir._qdir.remove(self.name):
             self.refresh(children=True, parent=parentDir)
 
+
+    def _weakBackupFile(self, version):
+
+        sBkupFilename = self.nameFromVersion(version)
+        sBkupFilePath = pathJoin(self.backupDirPath(), sBkupFilename)
+
+        return self.library._weakFile(sBkupFilePath)
+
+    def __warnAlreadyLocked(self, sLockOwner, **kwargs):
+        sMsg = '{1}\n\n{2:^{0}}\n\n{3:^{0}}'.format(len(self.name) + 2, '"{0}"'.format(self.name), "locked by", (sLockOwner + " !").upper())
+        confirmDialog(title="FILE LOCKED !"
+                    , message=sMsg
+                    , button=["OK"]
+                    , defaultButton="OK"
+                    , cancelButton="OK"
+                    , dismissString="OK"
+                    , icon=kwargs.pop("icon", "critical"))
+        return

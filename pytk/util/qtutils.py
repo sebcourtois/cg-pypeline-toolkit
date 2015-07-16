@@ -60,9 +60,14 @@ def toColorSheet(qColor, default=None):
 def toQFileInfo(p):
 
     if not p or isinstance(p, QtCore.QFileInfo):
-        return p
+        fileInfo = p
     else:
-        return QtCore.QFileInfo(p)
+        fileInfo = QtCore.QFileInfo(p)
+
+    if fileInfo and fileInfo.isRelative():
+        raise ValueError("Given path is relative: '{}'".format(fileInfo.filePath()))
+
+    return fileInfo
 
 def setWaitCursor(func):
 

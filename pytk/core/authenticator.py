@@ -13,27 +13,27 @@ class Authenticator(object):
     def loggedUser(self, *args, **kwargs):
         return {}
 
-    def login(self, *args, **kwargs):
+    def logIn(self, *args, **kwargs):
         return {}
 
-    def logout(self, *args, **kwargs):
-        return
+    def logOut(self, *args, **kwargs):
+        return True
 
     def authenticate(self, **kwargs):
 
         if kwargs.get('relog', False):
-            self.logout()
+            self.logOut()
 
         userData = self.loggedUser()
         if not userData:
 
             if isQtApp():
-                userData = loginDialog(loginFunc=self.login)
+                userData = loginDialog(loginFunc=self.logIn)
             else:
                 for _ in xrange(2):
                     sUser = raw_input("login:")
                     sPwd = getpass()
-                    userData = self.login(sUser, sPwd)
+                    userData = self.logIn(sUser, sPwd)
                     if userData:
                         break
 

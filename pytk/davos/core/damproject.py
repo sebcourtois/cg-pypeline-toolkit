@@ -6,7 +6,7 @@ from pytk.util.strutils import findFields
 
 from .drclibrary import DrcLibrary
 from .damtypes import DamUser
-from .dummyauth import DummyAuth
+from .authtypes import HellAuth
 from .utils import getConfigModule
 
 LIBRARY_SPACES = ("public", "private")
@@ -34,13 +34,13 @@ class DamProject(object):
     def reset(self):
         logMsg(log='all')
 
-        self._damas = None
+        self._damasdb = None
+        self._shotgundb = None
         self._authobj = None
-        self.authenticated = False
-
+        self._itemmodel = None
         self.__loggedUser = None
 
-        self._itemmodel = None
+        self.authenticated = False
         self.loadedLibraries = {}
 
     def init(self, **kwargs):
@@ -57,18 +57,10 @@ class DamProject(object):
 
         self.__confLibraries = self.getVar("project", "libraries")
 
+        self.__initShotgun()
+        self.__initDamas()
+
         return self.authenticate(**kwargs)
-
-    def getAuthenticator(self):
-
-        sAuthFullName = self.getVar("project", "authenticator", "")
-        if not sAuthFullName:
-            return DummyAuth()
-        else:
-            sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
-            exec("from {} import {}".format(sAuthMod, sAuthClass))
-
-            return eval(sAuthClass)()
 
     def authenticate(self):
 
@@ -81,6 +73,17 @@ class DamProject(object):
         self.__loggedUser = DamUser(self, userData)
 
         return True
+
+    def getAuthenticator(self):
+
+        sAuthFullName = self.getVar("project", "authenticator", "")
+        if not sAuthFullName:
+            return HellAuth()
+        else:
+            sAuthMod, sAuthClass = sAuthFullName.rsplit(".", 1)
+            exec("from {} import {}".format(sAuthMod, sAuthClass))
+
+            return eval(sAuthClass)(self)
 
     def isAuthenticated(self):
 
@@ -101,15 +104,6 @@ class DamProject(object):
 
         return self.__loggedUser
 
-    def _iterConfigLibraries(self, fullName=False):
-
-        for sLibName in self.__confLibraries:
-            for sSpace in LIBRARY_SPACES:
-                if fullName:
-                    yield DrcLibrary.makeFullName(sSpace, sLibName)
-                else:
-                    yield (sSpace, sLibName)
-
     def loadLibraries(self):
 
         for sSpace, sLibName in self._iterConfigLibraries():
@@ -123,6 +117,7 @@ class DamProject(object):
         if not drcLib:
             sLibPath = pathResolve(self.getVar(sLibName, sSpace + "_path"))
             drcLib = DrcLibrary(sLibName, sLibPath, sSpace, self)
+            drcLib.setDatabase(self._damasdb)
             drcLib.addModelRow()
 
         return drcLib
@@ -196,3 +191,33 @@ class DamProject(object):
             msg = ("No such library: '{}'. \n\n\tKnown libraries: {}"
                    .format(sLibName, self.__confLibraries))
             raise ValueError(msg)
+
+    def _iterConfigLibraries(self, fullName=False):
+
+        for sLibName in self.__confLibraries:
+            for sSpace in LIBRARY_SPACES:
+                if fullName:
+                    yield DrcLibrary.makeFullName(sSpace, sLibName)
+                else:
+                    yield (sSpace, sLibName)
+
+    def __initShotgun(self):
+
+        from zombie.shotgunengine import ShotgunEngine
+        self._shotgundb = ShotgunEngine()
+
+    def __initDamas(self):
+
+        from pytk.davos.core import damas
+        self._damasdb = damas.http_connection("http://62.210.104.42:8090")
+
+    def __repr__(self):
+
+        cls = self.__class__
+
+        try:
+            sRepr = ("{0}('{1}')".format(cls.__name__, self.name))
+        except AttributeError:
+            sRepr = cls.__name__
+
+        return sRepr

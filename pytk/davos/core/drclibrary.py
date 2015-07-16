@@ -1,4 +1,6 @@
 
+import os.path as osp
+
 from PySide.QtCore import QFileInfo
 
 from pytk.util.logutils import logMsg
@@ -21,6 +23,7 @@ class DrcLibrary(DrcEntry):
 
         self.loadedEntriesCache = {}
         self._itemmodel = None
+        self._db = None
 
         self.libName = sLibName
         self.fullName = DrcLibrary.makeFullName(sSpace, sLibName)
@@ -43,6 +46,9 @@ class DrcLibrary(DrcEntry):
     def setItemModel(self, model):
         self._itemmodel = model
 
+    def setDatabase(self, db):
+        self._db = db
+
     def addModelRow(self):
 
         model = self._itemmodel
@@ -58,13 +64,7 @@ class DrcLibrary(DrcEntry):
         return sorted((cls for (_, cls) in listClassesFromModule(drctypes.__name__)
                             if hasattr(cls, "classUiPriority")), key=lambda c: c.classUiPriority)
 
-    def getDir(self, pathOrInfo):
-        return self.getEntry(pathOrInfo, forceType=DrcDir)
-
-    def getFile(self, pathOrInfo):
-        return self.getEntry(pathOrInfo, forceType=DrcFile)
-
-    def getEntry(self, pathOrInfo, forceType=None):
+    def getEntry(self, pathOrInfo, weak=False, drcType=None):
         logMsg(log="all")
 
         fileInfo = None
@@ -74,10 +74,10 @@ class DrcLibrary(DrcEntry):
         elif isinstance(pathOrInfo, basestring):
             sAbsPath = pathNorm(pathOrInfo)
         else:
-            raise TypeError("argument 'pathOrInfo' must be of type <QFileInfo> or <basestring>. Got {0}."
-                            .format(type(pathOrInfo)))
+            raise TypeError("argument 'pathOrInfo' must be of type <QFileInfo> \
+                            or <basestring>. Got {0}.".format(type(pathOrInfo)))
 
-        sRelPath = self.relFromAbsPath(sAbsPath)
+        sRelPath = self.relFromAbsPath(sAbsPath) if osp.isabs(sAbsPath) else sAbsPath
         drcEntry = self.loadedEntriesCache.get(sRelPath)
         if drcEntry:
             drcEntry.loadData(drcEntry._qfileinfo)
@@ -86,8 +86,10 @@ class DrcLibrary(DrcEntry):
         if not fileInfo:
             fileInfo = toQFileInfo(sAbsPath)
 
-        if forceType is not None:
-            cls = forceType
+        # weak means that we do not check if the path exists.
+        # so we must get the wanted type from "drcType" argument
+        if weak:
+            cls = drcType
         else:
             if fileInfo.isDir():
                 cls = DrcDir
@@ -117,6 +119,12 @@ class DrcLibrary(DrcEntry):
 
     def sendToTrash(self):
         raise RuntimeError("You cannot delete a library !!")
+
+    def _weakDir(self, pathOrInfo):
+        return self.getEntry(pathOrInfo, weak=True, drcType=DrcDir)
+
+    def _weakFile(self, pathOrInfo):
+        return self.getEntry(pathOrInfo, weak=True, drcType=DrcFile)
 
     def _remember(self):
 
