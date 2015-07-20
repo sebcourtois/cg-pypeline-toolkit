@@ -110,7 +110,7 @@ class BrowserTreeWidget(BaseTreeWidget):
 
         self.resizeColumnsToContents()
 
-        self.setUiCategory("ZZ_Dev" if inDevMode() else 0)
+        #self.setUiCategory("ZZ_Dev" if inDevMode() else 0)
 
         self.childrenWidget.setModel(self.model())
 
