@@ -7,7 +7,7 @@ SelectionBehavior = QtGui.QAbstractItemView.SelectionBehavior
 from pytk.core.itemviews.utils import createAction
 from pytk.core.dialogs import confirmDialog
 
-from pytk.util.sysutils import toStr
+from pytk.util.sysutils import toStr, inDevMode
 from pytk.util.logutils import logMsg
 
 class BaseContextMenu(QtGui.QMenu):
@@ -113,9 +113,9 @@ class BaseContextMenu(QtGui.QMenu):
             sAction = actionDct["label"]
             sMenu = actionDct.get("menu", "Main")
 
-#            if actionDct.get("dev", False):
-#                if not cmnCfg.isDevEnabled():
-#                    continue
+            if actionDct.get("dev", False):
+                if not inDevMode():
+                    continue
 
             if sAction == "separator":
                 qAction = None
@@ -200,5 +200,4 @@ class BaseContextMenu(QtGui.QMenu):
 
         for item in itemList:
             getattr(item, sRefreshFunc)()
-
 

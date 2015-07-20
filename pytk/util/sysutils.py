@@ -1,4 +1,5 @@
 
+import os
 import sys
 import time
 from collections import Iterable
@@ -245,3 +246,8 @@ def isQtApp():
         return False
     else:
         return (QtGui.qApp is not None)
+
+
+def inDevMode():
+    s = os.getenv("DEV_MODE_ENV", "0")
+    return eval(s) if s else False

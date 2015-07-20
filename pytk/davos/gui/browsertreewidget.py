@@ -12,6 +12,7 @@ from pytk.util.logutils import logMsg
 
 from .childrenwidget import ChildrenWidget
 from .browsercontextmenu import BrowserContextMenu
+from pytk.util.sysutils import inDevMode
 
 
 class DrcIconProvider(PropertyIconProvider):
@@ -109,7 +110,7 @@ class BrowserTreeWidget(BaseTreeWidget):
 
         self.resizeColumnsToContents()
 
-#        self.setUiCategory("ZZ_Dev" if cmnCfg.isDevEnabled() else 0)
+        self.setUiCategory("ZZ_Dev" if inDevMode() else 0)
 
         self.childrenWidget.setModel(self.model())
 
