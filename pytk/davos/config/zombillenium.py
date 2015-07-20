@@ -6,6 +6,7 @@ class project:
 
     public_path = '//Diskstation/z2k/05_3D/{}/'.format(dir_name)
     private_path = '${{USERPROFILE}}/cg_projects/{}/'.format(dir_name)
+    damas_path = "zomb/"
 
     template_path = '//Diskstation/z2k/05_3D/{}/tool/template/'.format(dir_name)
 
@@ -23,6 +24,7 @@ class asset_lib:
 
     public_path = project.public_path + dir_name
     private_path = project.private_path + dir_name
+    damas_path = project.damas_path + dir_name
 
     asset_tree = {
         "{assetType}":
@@ -43,6 +45,7 @@ class shot_lib:
 
     public_path = project.public_path + dir_name
     private_path = project.private_path + dir_name
+    damas_path = project.damas_path + dir_name
 
     shot_tree = {
         "{sequence}":
@@ -59,7 +62,7 @@ class output_lib:
 
     public_path = project.public_path + dir_name
     private_path = project.private_path + dir_name
-
+    damas_path = project.damas_path + dir_name
 
 
 

@@ -11,7 +11,7 @@ from pytk.util.fsutils import pathNorm
 
 from . import drctypes
 from .drctypes import DrcEntry, DrcDir, DrcFile
-
+from .dbtypes import DrcDb
 
 class DrcLibrary(DrcEntry):
 
@@ -21,7 +21,8 @@ class DrcLibrary(DrcEntry):
 
     def __init__(self, sLibName, sLibPath, sSpace="", project=None):
 
-        self.loadedEntriesCache = {}
+        self._cachedEntries = {}
+        self._cachedDbNodes = {}
         self._itemmodel = None
         self._db = None
 
@@ -37,6 +38,7 @@ class DrcLibrary(DrcEntry):
 
         if self.project:
             self._itemmodel = self.project._itemmodel
+            self._db = DrcDb(self.project._damasdb)
 
         super(DrcLibrary, self).loadData(fileInfo)
         assert self.isDir(), "<{}> No such directory: '{}'".format(self, self.absPath())
@@ -45,9 +47,6 @@ class DrcLibrary(DrcEntry):
 
     def setItemModel(self, model):
         self._itemmodel = model
-
-    def setDatabase(self, db):
-        self._db = db
 
     def addModelRow(self):
 
@@ -64,7 +63,7 @@ class DrcLibrary(DrcEntry):
         return sorted((cls for (_, cls) in listClassesFromModule(drctypes.__name__)
                             if hasattr(cls, "classUiPriority")), key=lambda c: c.classUiPriority)
 
-    def getEntry(self, pathOrInfo, weak=False, drcType=None):
+    def getEntry(self, pathOrInfo, weak=False, drcType=None, dbNode=False):
         logMsg(log="all")
 
         fileInfo = None
@@ -78,7 +77,7 @@ class DrcLibrary(DrcEntry):
                             or <basestring>. Got {0}.".format(type(pathOrInfo)))
 
         sRelPath = self.relFromAbsPath(sAbsPath) if osp.isabs(sAbsPath) else sAbsPath
-        drcEntry = self.loadedEntriesCache.get(sRelPath)
+        drcEntry = self._cachedEntries.get(sRelPath)
         if drcEntry:
             drcEntry.loadData(drcEntry._qfileinfo)
             return drcEntry if drcEntry.exists() else None
@@ -87,7 +86,7 @@ class DrcLibrary(DrcEntry):
             fileInfo = toQFileInfo(sAbsPath)
 
         # weak means that we do not check if the path exists.
-        # so we must get the wanted type from "drcType" argument
+        # as we can't guess the type, we must use the one passed to "drcType" argument.
         if weak:
             cls = drcType
         else:
@@ -98,7 +97,8 @@ class DrcLibrary(DrcEntry):
             else:
                 return None
 
-        return cls(self, fileInfo)
+        entry = cls(self, fileInfo, dbNode=dbNode)
+        return entry
 
     def contains(self, sAbsPath):
         sLibPath = self.absPath()
@@ -110,6 +110,12 @@ class DrcLibrary(DrcEntry):
             return None
 
         return self.project.getLibrary(sSpace, self.libName)
+
+    def getVar(self, sVarName, default="NoEntry", **kwargs):
+        return self.project.getVar(self.libName, sVarName, default=default, **kwargs)
+
+    def getConfPath(self, pathVar="", tokens=None):
+        return self.project.getPath(self.space, self.libName, pathVar, tokens)
 
     def hasChildren(self):
         return True

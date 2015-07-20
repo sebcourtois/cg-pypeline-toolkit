@@ -7,6 +7,15 @@ class EditState:
     Multi = 2
 
 
+def setattr_(*args):
+
+    try:
+        setattr(*args)
+    except AttributeError:
+        return False
+
+    return True
+
 class MetaProperty(object):
 
     def __init__(self , sProperty, metaobj):
@@ -18,18 +27,22 @@ class MetaProperty(object):
 
         self.defaultValue = [] if self.__isMulti else copyOf(propertyDct.get("default", "undefined"))
 
-        self._accessor = None
 
-        sReader = propertyDct.get("read", sProperty)
+        sAccessor = propertyDct.get("accessor", "")
+        self._accessor = sAccessor
+
+        sReader = propertyDct.get("reader", "")
         self.__readable = True if sReader else False
-        self.__reader = sReader
+        self._reader = sReader
+        self.__read = None
 
-        sWriter = propertyDct.get("write", "")
+        sWriter = propertyDct.get("writer", "")
         self.__writable = True if sWriter else False
-        self.__writer = sWriter
+        self._writer = sWriter
+        self.__write = None
 
-        self.__storable = propertyDct.get("storable", True)
         self.__copyable = propertyDct.get("copyable", False)
+        self.__lazy = propertyDct.get("lazy", False)
 
         self._metaobj = metaobj
 
@@ -38,29 +51,32 @@ class MetaProperty(object):
         self.name = sProperty
         self.propertyDct = propertyDct
 
-    def initAccessors(self):
+    def initAccessors(self, create=False):
 
         if self.accessored:
-            return
+            return True
+
+        sAccessor = self._accessor
+        if not sAccessor:
+            return False
+
+        self._accessor = getattr(self._metaobj, sAccessor)
+
+        if (not self._accessor) and self.__lazy:
+            if create:
+                accessor = self.createAccessor()
+                setattr(self._metaobj, sAccessor, accessor)
+                self._accessor = accessor
+
+            if not self._accessor:
+                return False
 
         self.accessored = True
 
-        self._accessor = getattr(self._metaobj, self.propertyDct["accessor"])
+        return True
 
-        if self.isReadable():
-            sReader = self.__reader
-            if sReader.endswith("()"):
-                self.__reader = getattr(self._accessor, sReader.rstrip("()"))
-            else:
-                self.__reader = partial(getattr, self._accessor, sReader.rstrip("()"))
-
-
-        if self.isWritable():
-            sWriter = self.__writer
-            if sWriter.endswith("()"):
-                self.__writer = getattr(self._accessor, sWriter.rstrip("()"))
-            else:
-                self.__writer = partial(getattr, self._accessor, sWriter.rstrip("()"))
+    def createAccessor(self):
+        raise NotImplementedError("must be implemented in subclass")
 
     def getParam(self, sParam, default="NoEntry"):
 
@@ -77,32 +93,69 @@ class MetaProperty(object):
     def isInput(self):
         return self.propertyDct.get("inputData", False)
 
-    def isReadable(self):
-        return self.__readable
-
-    def isWritable(self):
-        return self.__writable
-
-    def isStorable(self):
-        return self.__storable
-
     def isCopyable(self):
         return self.__copyable
+
+    def isLazy(self):
+        return self.__lazy
 
     def isValidValue(self, value):
         return True
 
+    def isReadable(self):
+        bReadable = self.__readable and self.initAccessors()
+        if bReadable and (not self.__read):
+            sReader = self._reader
+            if '(' in sReader:
+                sFunc, sAttr = sReader.split('(', 1)
+                self._reader = sAttr.strip(')')
+                self.__read = getattr(self._accessor, sFunc)
+            else:
+                self.__read = partial(getattr, self._accessor)
+
+        return bReadable
+
     def read(self):
 
-        self.initAccessors()
+#        print self._reader, self.__read
 
-        return self.__reader()
+        reader = self._reader
+        if reader:
+            value = self.__read(reader)
+        else:
+            value = self.__read()
+
+        return value
+
+    def isWritable(self):
+        bWritable = self.__writable and self.initAccessors(create=True)
+        if bWritable and (not self.__write):
+            sWriter = self._writer
+            if '(' in sWriter:
+                sFunc, sAttr = sWriter.split('(', 1)
+                self._writer = sAttr.strip(')')
+                self.__write = getattr(self._accessor, sFunc)
+            else:
+                self.__write = partial(setattr_, self._accessor)
+
+        return bWritable
 
     def write(self, value):
 
-        self.initAccessors()
+#        print self._writer, self.__write
 
-        return self.__writer(value)
+        writer = self._writer
+        if writer:
+            bStatus = self.__write(writer, value)
+        else:
+            bStatus = self.__write(value)
+
+        if not isinstance(bStatus, bool):
+            sWriter = self.propertyDct["writer"]
+            raise ValueError("Writer function must return a boolean: {}.{}"
+                             .format(self._accessor, sWriter))
+
+        return bStatus
 
     def getattr_(self, *args):
         return getattr(self._metaobj, self.name, *args)

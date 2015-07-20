@@ -52,7 +52,7 @@ class PyConfParser(object):
                 bSetVar = True
 
         if not isinstance(value, expectedType):
-            msg = '"{0}": Expected {1}, got {2}'.format(sConfVar, expectedType, type(value))
+            msg = u'"{0}": Expected {1}, got {2}'.format(sConfVar, expectedType, type(value))
             out_sErrorMsgList.append(msg)
             return
 
@@ -98,7 +98,7 @@ class PyConfParser(object):
                 if sDefinedPath is None:
                     setattr(pyobj, sConfVar, sPath)
                 else:
-                    msg = '"{0}" :  Already defined to "{1}"'.format(sConfVar, sDefinedPath)
+                    msg = u'"{0}" :  Already defined to "{1}"'.format(sConfVar, sDefinedPath)
                     self._errosOnInit.append(msg)
                     continue
 
@@ -145,7 +145,7 @@ class PyConfParser(object):
         try:
             return sections[sSectionName]
         except KeyError:
-            msg = "<{}> No such section: '{}'. \n\n\tExpected values: {}".format(self, sSectionName, sections.keys())
+            msg = u"<{}> No such section: '{}'. \n\n\tExpected values: {}".format(self, sSectionName, sections.keys())
             raise KeyError(msg)
 
     def formatedErrors(self, sErrorList):

@@ -9,9 +9,9 @@ from PySide.QtCore import QDir
 
 from pytk.core.dialogs import confirmDialog
 
-from pytk.util.logutils import logMsg
+from pytk.util.logutils import logMsg, forceLog
 from pytk.util.qtutils import toQFileInfo
-from pytk.util.fsutils import pathJoin, pathSuffixed, pathRel
+from pytk.util.fsutils import pathJoin, pathSuffixed, pathRel, normCase
 from pytk.util.fsutils import copyFile
 from pytk.util.fsutils import sha1HashFile
 from pytk.util.qtutils import setWaitCursor
@@ -23,7 +23,7 @@ from .properties import DrcEntryProperties, DrcFileProperties
 from .utils import promptForComment
 from .utils import versionFromName
 from .locktypes import LockFile
-from .dbtypes import DbSearchError, DbReadError, DbCreateError, DbNode
+from pytk.util.sysutils import timer, getCaller
 
 
 class DrcEntry(DrcMetaObject):
@@ -37,7 +37,7 @@ class DrcEntry(DrcMetaObject):
     primaryProperty = propertiesDctItems[0][0]
 
 
-    def __init__(self, drcLibrary, absPathOrInfo=None):
+    def __init__(self, drcLibrary, absPathOrInfo=None, **kwargs):
 
         self.library = drcLibrary
         self._qfileinfo = None
@@ -54,18 +54,20 @@ class DrcEntry(DrcMetaObject):
 
             if id(self) != id(drcLibrary):
                 sAbsPath = fileInfo.filePath()
-                msg = "Path is NOT part of {}: '{}'".format(drcLibrary, sAbsPath)
-                assert drcLibrary.contains(fileInfo.absoluteFilePath()), msg
+                if not drcLibrary.contains(fileInfo.absoluteFilePath()):
+                    msg = u"Path is NOT part of {}: '{}'".format(drcLibrary, sAbsPath)
+                    raise AssertionError(msg)
 
-            self.loadData(fileInfo)
+            self.loadData(fileInfo, **kwargs)
 
-    def loadData(self, fileInfo):
+    def loadData(self, fileInfo, **kwargs):
 
         fileInfo.setCaching(True)
 
-        qfileinfo = self._qfileinfo
-        if qfileinfo and qfileinfo == qfileinfo:
-            fileInfo.refresh()
+        curFileinfo = self._qfileinfo
+        bRefreshing = ((curFileinfo is not None) and (curFileinfo == fileInfo))
+        if bRefreshing:
+            curFileinfo.refresh()
             self._qdir.refresh()
         else:
             self._qfileinfo = fileInfo
@@ -74,28 +76,26 @@ class DrcEntry(DrcMetaObject):
             self._qdir = QDir(sAbsPath)
             self._qdir.setFilter(QDir.NoDotAndDotDot | QDir.Dirs | QDir.Files)
 
+            if self.isPublic():
+                bFindDbNode = kwargs.get('dbNode', False)
+                self._dbnode = self.getDbNode(find=bFindDbNode)
+
         super(DrcEntry, self).loadData()
 
         sEntryName = self.name
         self.baseName, self.suffix = osp.splitext(sEntryName)
         self.label = sEntryName
 
-        self._remember()
+        #print self, self._dbnode.logData() if self._dbnode else "Rien du tout"
+        if not bRefreshing:
+            self._remember()
 
         fileInfo.setCaching(False)
 
     def parentDir(self):
         return self.library.getEntry(self.relDirPath())
 
-    def loadChildren(self):
-
-        self.childrenLoaded = True
-
-        for child in self.iterChildren():
-            child.addModelRow(self)
-            self.loadedChildren.append(child)
-
-    def refresh(self, children=False, parent=None):
+    def refresh(self, **kwargs):
         logMsg(log="all")
 
         if self._writingValues_:
@@ -103,15 +103,21 @@ class DrcEntry(DrcMetaObject):
 
         logMsg('Refreshing : {0}'.format(self), log='debug')
 
+        bDbNode = kwargs.get("dbNode", True)
+        bChildren = kwargs.get("children", False)
+        parent = kwargs.get("parent", None)
+
         fileInfo = self._qfileinfo
 
         if not fileInfo.exists():
             self._forget(parent=parent, recursive=True)
         else:
             self.loadData(fileInfo)
+            if bDbNode and self._dbnode:
+                self._dbnode.refresh()
             self.updateModelRow()
 
-            if children and self.childrenLoaded:
+            if bChildren and self.childrenLoaded:
 
                 oldChildren = self.loadedChildren[:]
 
@@ -121,7 +127,7 @@ class DrcEntry(DrcMetaObject):
                         self.loadedChildren.append(child)
 
                 for child in oldChildren:
-                    child.refresh(children=children, parent=self)
+                    child.refresh(children=bChildren, parent=self, dbNode=False)
 
     def isPublic(self):
         return self.library.space == "public"
@@ -129,9 +135,16 @@ class DrcEntry(DrcMetaObject):
     def isPrivate(self):
         return self.library.space == "private"
 
-    def iterChildren(self):
+    def getChild(self, sChildName):
+        return self.library.getEntry(pathJoin(self.absPath(), sChildName))
+
+    def iterChildren(self, *nameFilters, **kwargs):
+
+        if self.isPublic():
+            self.loadChildDbNodes()
+
         getEntry = self.library.getEntry
-        return (getEntry(info) for info in self._qdir.entryInfoList())
+        return (getEntry(info) for info in self._qdir.entryInfoList(nameFilters, **kwargs))
 
     def hasChildren(self):
         return False
@@ -151,48 +164,98 @@ class DrcEntry(DrcMetaObject):
     def relFromAbsPath(self, sAbsPath):
         return pathRel(sAbsPath, self.absPath())
 
-    def getDbNode(self):
+    def damasPath(self):
+        sLibPath = self.library.absPath()
+        sLibDmsPath = self.library.getVar("damas_path")
+        return re.sub('^' + sLibPath, sLibDmsPath, self.absPath())
 
-        data = {
-                "library":self.library.fullName,
-                "dir_path": self.relDirPath(),
-                "name":self.name,
-                }
+    #@forceLog(log='debug')
+    def getDbNode(self, create=False, find=False):
 
-        sQuery = " ".join("{}:{}".format(k, v) for k, v in data.iteritems())
+        assert self.isPublic(), "File is NOT public !"
 
-        recs = self._db.search(sQuery)
-        if recs is None:
-            raise DbSearchError('Failed to process the query: "{}"'
-                                .format(sQuery))
+        _cachedDbNodes = self.library._cachedDbNodes
+        sRelPath = normCase(self.relPath())
 
-        elif len(recs) > 1:
-            raise ValueError("Several nodes found: {}".format(recs))
+        logMsg(u"\ngetting DbNode: '{}'".format(sRelPath), log='debug')
+        dbnode = _cachedDbNodes.get(sRelPath)
+        if dbnode:
+            logMsg(u"got from CACHE.", log='debug')
+        elif find:
+            sParentDirPath, sEntryName = osp.split(sRelPath)
+            data = {
+                    "project":self.library.project.name,
+                    "library":self.library.fullName,
+                    "parentDir": sParentDirPath,
+                    "name":sEntryName,
+                    }
+            sQuery = " ".join("{}:{}".format(k, v) for k, v in data.iteritems())
+            print sQuery
+            dbnode = self.library._db.findOne(sQuery)
+            if dbnode:
+                logMsg(u"got from DB.", log='debug')
+                _cachedDbNodes[sRelPath] = dbnode
+
+        if (not dbnode) and create:
+            dbnode = self.createDbNode()
+            logMsg(u"just created.", log='debug')
         else:
-            if not recs:
-                return None
+            logMsg(u"not found.", log='debug')
 
-            nodeId = recs[0]
-            recs = self._db.read(nodeId)
-            if recs is None:
-                raise DbReadError('Failed to get node: {}'
-                                    .format(nodeId))
-
-            return DbNode(self._db, recs[0])
+        return dbnode
 
     def createDbNode(self):
 
+        assert self.isPublic(), "File is NOT public !"
+
+        print u"creating DbNode for {}".format(self)
+        data = self._initialDbNodeData()
+
+        _cachedDbNodes = self.library._cachedDbNodes
+
+        cacheKey = pathJoin(data.get("parentDir"), data.get("name"))
+        if cacheKey in _cachedDbNodes:
+            raise RuntimeError("DbNode already created: '{}'".format(cacheKey))
+
+        dbnode = self.library._db.createNode(data)
+        print u"storing DbNode:", cacheKey
+        _cachedDbNodes[cacheKey] = dbnode
+
+        return dbnode
+
+    #@timer
+    def loadChildDbNodes(self):
+
+        _cachedDbNodes = self.library._cachedDbNodes
+
+        for dbnode in self.getChildDbNodes():
+
+            cacheKey = pathJoin(dbnode.getValue("parentDir"), dbnode.getValue("name"))
+            cachedNode = _cachedDbNodes.get(cacheKey)
+            if cachedNode:
+                cachedNode.refresh(dbnode._data)
+            else:
+                #print u"loading DbNode:", cacheKey, dbnode.dataRepr()
+                _cachedDbNodes[cacheKey] = dbnode
+
+    def getChildDbNodes(self, **kwargs):
+
         data = {
                 "library":self.library.fullName,
-                "dir_path": self.relDirPath(),
-                "name":self.name,
+                "parentDir": normCase(self.relPath()),
                 }
 
-        rec = self._db.create(data)
-        if rec is None:
-            raise DbCreateError("Failed to create: {}".format(data))
+        sQuery = " ".join(u"{}:{}".format(k, v) for k, v in data.iteritems())
+        return self.library._db.findNodes(sQuery, **kwargs)
 
-        return DbNode(self._db, rec)
+    #@timer
+    def loadChildren(self):
+
+        self.childrenLoaded = True
+
+        for child in self.iterChildren():
+            child.addModelRow(self)
+            self.loadedChildren.append(child)
 
     def addModelRow(self, parent):
 
@@ -236,17 +299,45 @@ class DrcEntry(DrcMetaObject):
         send2trash(self.absPath())
         self.refresh(children=True)
 
+    def _initialDbNodeData(self):
+
+        return {
+                "project":self.library.project.name,
+                "library":self.library.fullName,
+                "parentDir": normCase(self.relDirPath()),
+                "name":normCase(self.name),
+                }
+
+    def _writeAllValues(self, propertyNames=None):
+
+        sPropertyList = tuple(self.__class__._iterPropertyArg(propertyNames))
+
+        print getCaller(), "sPropertyList", sPropertyList
+
+        sDbNodePrptySet = set(self.filterPropertyNames(sPropertyList,
+                                                       accessor="_dbnode"))
+
+        sOtherPrptySet = set(sPropertyList) - sDbNodePrptySet
+        print "sOtherPrptySet", sOtherPrptySet
+
+        DrcMetaObject._writeAllValues(self, propertyNames=sOtherPrptySet)
+
+        print "sDbNodePrptySet", sDbNodePrptySet
+        data = self.getAllValues(sDbNodePrptySet)
+        print "Writing data:", data, self
+        self.getDbNode(create=True).setData(data)
+
     def _remember(self):
 
         key = self.relPath()
         # print '"{}"'.format(self.relPath())
-        loadedEntriesCache = self.library.loadedEntriesCache
+        _cachedEntries = self.library._cachedEntries
 
-        if key in loadedEntriesCache:
+        if key in _cachedEntries:
             logMsg("Already cached: {0}.".format(self), log="debug")
         else:
             logMsg("Caching: {0}.".format(self), log="debug")
-            loadedEntriesCache[key] = self
+            _cachedEntries[key] = self
 
     def _forget(self, parent=None, **kwargs):
         logMsg(self.__class__.__name__, log='all')
@@ -262,9 +353,9 @@ class DrcEntry(DrcMetaObject):
     def __forgetOne(self, parent=None):
 
         key = self.relPath()
-        loadedEntriesCache = self.library.loadedEntriesCache
+        _cachedEntries = self.library._cachedEntries
 
-        if key not in loadedEntriesCache:
+        if key not in _cachedEntries:
             logMsg("Already dropped: {0}.".format(self), log="debug")
         else:
             parentDir = parent if parent else self.parentDir()
@@ -272,11 +363,10 @@ class DrcEntry(DrcMetaObject):
                 logMsg("Dropping {} from {}".format(self, parentDir), log="debug")
                 parentDir.loadedChildren.remove(self)
 
-            # del self.loadedChildren[:]
+            del self.loadedChildren[:]
             self.delModelRow()
 
-            return loadedEntriesCache.pop(key)
-
+            return _cachedEntries.pop(key)
 
     def __getattr__(self, sAttrName):
 
@@ -305,8 +395,8 @@ class DrcDir(DrcEntry):
 
     classUiPriority = 1
 
-    def __init__(self, drcLibrary, absPathOrInfo=None):
-        super(DrcDir, self).__init__(drcLibrary, absPathOrInfo)
+    def __init__(self, drcLibrary, absPathOrInfo=None, **kwargs):
+        super(DrcDir, self).__init__(drcLibrary, absPathOrInfo, **kwargs)
 
     def getHomonym(self, sSpace, create=False):
 
@@ -337,18 +427,18 @@ class DrcFile(DrcEntry):
     propertiesDctItems = DrcFileProperties
     propertiesDct = dict(propertiesDctItems)
 
-    def __init__(self, drcLibrary, absPathOrInfo=None):
-        super(DrcFile, self).__init__(drcLibrary, absPathOrInfo)
+    def __init__(self, drcLibrary, absPathOrInfo=None, **kwargs):
+        super(DrcFile, self).__init__(drcLibrary, absPathOrInfo, **kwargs)
 
         self.publishAsserted = False
         self.__savedLockState = None
 
-    def loadData(self, fileInfo):
+    def loadData(self, fileInfo, **kwargs):
 
-        sUser = self.library.project.getLoggedUser().loginName
-        self._lockfile = LockFile(fileInfo.absoluteFilePath(), sUser)
+        sLogin = self.library.project.getLoggedUser().loginName
+        self._lockobj = LockFile(fileInfo.absoluteFilePath(), sLogin)
 
-        DrcEntry.loadData(self, fileInfo)
+        DrcEntry.loadData(self, fileInfo, **kwargs)
 
         self.updateCurrentVersion()
 
@@ -362,6 +452,8 @@ class DrcFile(DrcEntry):
     def edit(self):
         logMsg(log='all')
 
+        self.refresh()
+
         bLockState = self.getPrpty("locked")
         if not self.setLocked(True):
             return
@@ -374,12 +466,9 @@ class DrcFile(DrcEntry):
 
     def makePrivateCopy(self, **kwargs):
 
-        self.refresh()
-
-        sPubFilePath = self.absPath()
-
         assert self.isFile(), "File does NOT exist !"
         assert self.isPublic(), "File is NOT public !"
+        assert versionFromName(self.name) is None, "File is already a version !"
 
         pubDir = self.parentDir()
         privDir = pubDir.getHomonym('private', create=True)
@@ -393,6 +482,7 @@ class DrcFile(DrcEntry):
         # at this point, file path is fully converted to private space
         sPrivFilePath = pathJoin(sPrivDirPath, sPrivFilenameWithExt)
 
+        sPubFilePath = self.absPath()
         # now let's make the private copy of that file
         if sPubFilePath == sPrivFilePath:
             raise ValueError('Path of source and destination files are identical: "{0}".'
@@ -455,7 +545,7 @@ You have {0} version of '{1}':
         if osp.normcase(sOtherFilePath) == osp.normcase(sCurFilePath):
             return False, sOtherSha1Key
 
-        sOwnSha1Key = self.getPrpty("hashKey")
+        sOwnSha1Key = self.getPrpty("checksum")
         if not sOwnSha1Key:
             return True, sOtherSha1Key
 
@@ -508,7 +598,8 @@ You have {0} version of '{1}':
             return None
 
         sFilePath = pathJoin(backupDir.absPath(), sEntryList[0])
-        return self.library.getEntry(sFilePath)
+        return self.library.getEntry(sFilePath, dbNode=True)
+
 
     def assertFilePublishable(self, privFile):
 
@@ -558,7 +649,9 @@ You have {0} version of '{1}':
             self.abortPublish(e, backupFile, bAutoUnlock)
             raise
 
-        iCurVers = self.currentVersion
+        #save the current version that will be incremented in endPublish
+        #in case we need to do a rollback on Exception
+        iSavedVers = self.currentVersion
         try:
             self.endPublish(sSrcFilePath, sComment,
                             saveSha1Key=bSaveSha1Key,
@@ -566,7 +659,7 @@ You have {0} version of '{1}':
                             autoUnlock=bAutoUnlock)
         except Exception, e:
             self.abortPublish(e, backupFile, bAutoUnlock)
-            self.rollBackToVersion(iCurVers)
+            self.rollBackToVersion(iSavedVers)
             raise
 
         return True
@@ -581,7 +674,7 @@ You have {0} version of '{1}':
 
             if not bLockState:
 
-                msg = '"{0}" is not locked !'.format(self.name)
+                msg = u'"{0}" is not locked !'.format(self.name)
 
                 confirmDialog(title='SORRY !'
                             , message=msg
@@ -619,7 +712,7 @@ You have {0} version of '{1}':
                    saveSha1Key=False,
                    sha1Key=""):
 
-        self.setPrpty("comment", sComment)
+        self.setPrpty("comment", sComment, write=False)
 
         if saveSha1Key:
             if not sha1Key:
@@ -627,12 +720,14 @@ You have {0} version of '{1}':
             else:
                 sNewSha1Key = sha1Key
 
-            self.setPrpty("hashKey", sNewSha1Key)
+            self.setPrpty("checksum", sNewSha1Key, write=False)
 
-        self.setPrpty("sourceFile", sSrcFilePath)
+        self.setPrpty("sourceFile", sSrcFilePath, write=False)
 
         iNextVers = self.currentVersion + 1
-        self.setPrpty("currentVersion", iNextVers)
+        self.setPrpty("currentVersion", iNextVers, write=False)
+
+        self.writeAllValues()
 
         backupFile = self.createBackupFile(iNextVers)
         if not backupFile:
@@ -719,6 +814,9 @@ You have {0} version of '{1}':
 
         self.copyValuesFrom(backupFile)
 
+        if version == 0:
+            self._dbnode.delete()
+
     def createFromFile(self, srcFile):
 
         assert not self.exists(), "File already created: '{}'".format(self.absPath())
@@ -739,7 +837,9 @@ You have {0} version of '{1}':
         return True
 
     def getBackupDir(self):
-        return self.library.getEntry(self.backupDirPath())
+        backupDir = self.library.getEntry(self.backupDirPath())
+        #backupDir.loadChildDbNodes()
+        return backupDir
 
     def backupDirPath(self):
         return pathJoin(self.absDirPath(), "_version")
@@ -787,6 +887,10 @@ You have {0} version of '{1}':
         if parentDir._qdir.remove(self.name):
             self.refresh(children=True, parent=parentDir)
 
+    def _initialDbNodeData(self):
+        data = DrcEntry._initialDbNodeData(self)
+        data.update({"file":self.damasPath()})
+        return data
 
     def _weakBackupFile(self, version):
 
@@ -796,7 +900,7 @@ You have {0} version of '{1}':
         return self.library._weakFile(sBkupFilePath)
 
     def __warnAlreadyLocked(self, sLockOwner, **kwargs):
-        sMsg = '{1}\n\n{2:^{0}}\n\n{3:^{0}}'.format(len(self.name) + 2, '"{0}"'.format(self.name), "locked by", (sLockOwner + " !").upper())
+        sMsg = u'{1}\n\n{2:^{0}}\n\n{3:^{0}}'.format(len(self.name) + 2, '"{0}"'.format(self.name), "locked by", (sLockOwner + " !").upper())
         confirmDialog(title="FILE LOCKED !"
                     , message=sMsg
                     , button=["OK"]

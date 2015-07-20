@@ -1,3 +1,5 @@
+
+#@PydevCodeAnalysisIgnore
 from __future__ import absolute_import
 
 import time
@@ -45,7 +47,7 @@ class SymlinkLockFile(LockBase):
                         else:
                             raise AlreadyLocked("%s is already locked" %
                                                 self.path)
-                    time.sleep(timeout/10 if timeout is not None else 0.1)
+                    time.sleep(timeout / 10 if timeout is not None else 0.1)
             else:
                 # Link creation succeeded.  We're good to go.
                 return

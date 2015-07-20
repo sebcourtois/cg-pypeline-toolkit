@@ -1,8 +1,8 @@
 
 
-from PySide import QtCore
+from PySide.QtCore import Qt, QFileInfo
 from PySide import QtGui
-Qt = QtCore.Qt
+
 
 __qTransformModeDct = {
 "fast":Qt.FastTransformation,
@@ -59,10 +59,10 @@ def toColorSheet(qColor, default=None):
 
 def toQFileInfo(p):
 
-    if not p or isinstance(p, QtCore.QFileInfo):
+    if not p or isinstance(p, QFileInfo):
         fileInfo = p
     else:
-        fileInfo = QtCore.QFileInfo(p)
+        fileInfo = QFileInfo(p)
 
     if fileInfo and fileInfo.isRelative():
         raise ValueError("Given path is relative: '{}'".format(fileInfo.filePath()))

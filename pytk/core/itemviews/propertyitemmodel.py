@@ -27,10 +27,13 @@ class PropertyItem(QtGui.QStandardItem):
         super(PropertyItem, self).__init__()
 
         self.childrenLoaded = False
+        self._metaobj = None
 
         self._metaprpty = metaprpty
+
         if metaprpty:
             self._metaobj = metaprpty._metaobj
+            self.propertyName = metaprpty.name
 
     def type(self):
         return QtGui.QStandardItem.UserType + 1
@@ -51,7 +54,7 @@ class PropertyItem(QtGui.QStandardItem):
 
     def setupData(self, metaprpty):
 
-        msg = "{} has not been added to a model yet !".format(self)
+        msg = u"{} has not been added to a model yet !".format(self)
         assert (self.model() is not None), msg
 
         self._metaobj = metaprpty._metaobj
@@ -72,6 +75,17 @@ class PropertyItem(QtGui.QStandardItem):
             if provider:
                 icon = provider.icon(metaprpty)
                 self.setData(icon, Qt.DecorationRole)
+
+    def setData(self, value, role=Qt.EditRole):
+
+        if role == Qt.EditRole:
+            metaobj = self._metaobj
+            if metaobj:
+                if metaobj.setPrpty(self.propertyName, value):
+                    self.updateData()
+                    self.emitDataChanged()
+        else:
+            return QtGui.QStandardItem.setData(self, value, role)
 
     def loadFlags(self, metaprpty):
 
@@ -123,7 +137,6 @@ class PropertyItem(QtGui.QStandardItem):
             parent = self.model()
 
         return parent.iterChildRow(row)
-
 
     def __repr__(self):
         sClsName = self.__class__.__name__

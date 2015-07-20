@@ -14,8 +14,7 @@ DrcLibraryProperties = (
     'type':'drc_base',
     'isMulti':False,
     'accessor':'',
-    'read':'',
-    'storable':False,
+    'reader':'',
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiCategory':'01_General',
@@ -30,8 +29,7 @@ DrcEntryProperties = (
     'type':'drc_base',
     'isMulti':False,
     'accessor':'',
-    'read':'',
-    'storable':False,
+    'reader':'',
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Name',
@@ -44,8 +42,7 @@ DrcEntryProperties = (
     'type':'drc_base',
     'isMulti':False,
     'accessor':'_qfileinfo',
-    'read':'fileName()',
-    'storable':False,
+    'reader':'fileName()',
     'uiEditable':Eds.Disabled,
     'uiVisible':False,
     'uiCategory':'01_General',
@@ -57,12 +54,11 @@ DrcEntryProperties = (
     'type':'drc_time',
     'isMulti':False,
     'accessor':'_qfileinfo',
-    'read':'lastModified()',
-    'storable':False,
+    'reader':'lastModified()',
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Modif. Date',
-    'uiCategory':'01_General',
+    'uiCategory':"05_File",
     }
 ),
 # ('creationTime',
@@ -70,8 +66,7 @@ DrcEntryProperties = (
 #     'type':'drc_time',
 #     'isMulti':False,
 #     'accessor':'_qfileinfo',
-#     'read':'created()',
-#     'storable':False,
+#     'reader':'created()',
 #     'uiEditable':Eds.Disabled,
 #     'uiVisible':True,
 #     'uiDisplay':'Creation Date',
@@ -87,40 +82,10 @@ DrcFileProperties = [
     'type':'drc_size',
     'isMulti':False,
     'accessor':'_qfileinfo',
-    'read':'size()',
-    'storable':False,
+    'reader':'size()',
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'Size',
-    'uiCategory':'01_General',
-    }
-),
-('lockOwner',
-    {
-    'type':'drc_base',
-    'isMulti':False,
-    'default':'',
-    'accessor':'_lockfile',
-    'read':'owner()',
-    'storable':False,
-    'uiEditable':Eds.Disabled,
-    'uiVisible':True,
-    'uiDisplay':"Locked by",
-    'uiCategory':"05_File",
-    }
-),
-('locked',
-    {
-    'type':'drc_base',
-    'isMulti':False,
-    'default':False,
-    'accessor':'_lockfile',
-    'read':'is_locked()',
-    'write':'set_locked()',
-    'storable':False,
-    'uiEditable':Eds.Disabled,
-    'uiVisible':False,
-    'uiDisplay':"",
     'uiCategory':"05_File",
     }
 ),
@@ -128,40 +93,70 @@ DrcFileProperties = [
     {
     'type':'drc_base',
     'isMulti':False,
-    'default':'',
-    'accessor':'',
-    'read':'',
-    'storable':False,
+    'default':0,
+#    'accessor':'_dbnode',
+#    'reader':'getValue(version)',
+#    'writer':'setValue(version)',
+#    'lazy':True,
     'copyable':True,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':"Version",
-    'uiCategory':"05_File",
+    'uiCategory':"04_Version",
+    }
+),
+('lockOwner',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'default':'',
+    'accessor':'_lockobj',
+    'reader':'owner()',
+    'uiEditable':Eds.Disabled,
+    'uiVisible':True,
+    'uiDisplay':"Locked by",
+    'uiCategory':"04_Version",
+    }
+),
+('locked',
+    {
+    'type':'drc_base',
+    'isMulti':False,
+    'default':False,
+    'accessor':'_lockobj',
+    'reader':'is_locked()',
+    'writer':'set_locked()',
+    'uiEditable':Eds.Disabled,
+    'uiVisible':False,
+    'uiDisplay':"",
+    'uiCategory':None,
     }
 ),
 ('comment',
     {
-    'type':'drc_base',
+    'type':'db_str',
     'isMulti':False,
     'default':'',
-    'accessor':'',
-    'read':'',
-    'storable':False,
+    'accessor':'_dbnode',
+    'reader':'getValue(comment)',
+    'writer':'setValue(comment)',
+    'lazy':True,
     'copyable':True,
-    'uiEditable':Eds.Disabled,
+    'uiEditable':Eds.Enabled,
     'uiVisible':True,
     'uiDisplay':'',
-    'uiCategory':None,
+    'uiCategory':"04_Version",
     }
 ),
-('hashKey',
+('checksum',
     {
-    'type':'drc_base',
+    'type':'db_str',
     'isMulti':False,
     'default':'',
-    'accessor':'',
-    'read':'',
-    'storable':False,
+    'accessor':'_dbnode',
+    'reader':'getValue(checksum)',
+    'writer':'setValue(checksum)',
+    'lazy':True,
     'copyable':True,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
@@ -171,12 +166,13 @@ DrcFileProperties = [
 ),
 ('sourceFile',
     {
-    'type':'drc_base',
+    'type':'db_str',
     'isMulti':False,
     'default':'',
-    'accessor':'',
-    'read':'',
-    'storable':False,
+    'accessor':'_dbnode',
+    'reader':'getValue(sourceFile)',
+    'writer':'setValue(sourceFile)',
+    'lazy':True,
     'copyable':True,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
@@ -184,19 +180,20 @@ DrcFileProperties = [
     'uiCategory':None,
     }
 ),
-('publisher',
+('author',
     {
-    'type':'drc_base',
+    'type':'db_str',
     'isMulti':False,
     'default':'',
-    'accessor':'',
-    'read':'',
-    'storable':False,
+    'accessor':'_dbnode',
+    'reader':'getValue(author)',
+    'writer':'',
+    'lazy':True,
     'copyable':True,
     'uiEditable':Eds.Disabled,
     'uiVisible':True,
     'uiDisplay':'',
-    'uiCategory':None,
+    'uiCategory':"04_Version",
     }
 ),
 ]
@@ -211,6 +208,7 @@ class DrcBaseProperty(MetaProperty):
     def getIconData(self):
         return self._metaobj.getIconData()
 
+
 class FileTimeProperty(DrcBaseProperty):
 
     def read(self):
@@ -223,6 +221,14 @@ class FileSizeProperty(DrcBaseProperty):
         return MemSize(DrcBaseProperty.read(self))
 
 
+class DbStrProperty(DrcBaseProperty):
+
+    def __init__(self, sProperty, metaobj):
+        super(DrcBaseProperty, self).__init__(sProperty, metaobj)
+
+    def createAccessor(self):
+        return self._metaobj.createDbNode()
+
 
 class PropertyFactory(BasePropertyFactory):
 
@@ -230,16 +236,10 @@ class PropertyFactory(BasePropertyFactory):
     'drc_base' : DrcBaseProperty,
     'drc_time' : FileTimeProperty,
     'drc_size' : FileSizeProperty,
+    'db_str' : DbStrProperty,
     }
-
 
 
 class DrcMetaObject(MetaObject):
 
     propertyFactoryClass = PropertyFactory
-
-
-
-
-
-

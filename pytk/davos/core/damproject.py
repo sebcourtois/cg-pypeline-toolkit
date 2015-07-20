@@ -117,7 +117,6 @@ class DamProject(object):
         if not drcLib:
             sLibPath = pathResolve(self.getVar(sLibName, sSpace + "_path"))
             drcLib = DrcLibrary(sLibName, sLibPath, sSpace, self)
-            drcLib.setDatabase(self._damasdb)
             drcLib.addModelRow()
 
         return drcLib
@@ -203,10 +202,17 @@ class DamProject(object):
 
     def __initShotgun(self):
 
+        if self.getVar("project", "no_shotgun", False):
+            return
+
+        print "shotgun !!"
+
         from zombie.shotgunengine import ShotgunEngine
         self._shotgundb = ShotgunEngine()
 
     def __initDamas(self):
+
+        print "damas !!"
 
         from pytk.davos.core import damas
         self._damasdb = damas.http_connection("http://62.210.104.42:8090")

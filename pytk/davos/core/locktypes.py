@@ -38,7 +38,7 @@ class LockFile(MkdirLockFile):
         return True
 
 
-class DamasLock(LockBase):
+class DbLock(LockBase):
 
-    def __init__(self):
+    def __init__(self,):
         pass

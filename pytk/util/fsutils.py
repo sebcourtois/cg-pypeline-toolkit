@@ -23,6 +23,9 @@ def isFileStat(statobj):
 def pathNorm(p):
     return osp.normpath(p).replace("\\", "/")
 
+def normCase(p):
+    return osp.normcase(p).replace("\\", "/")
+
 def pathJoin(*args):
     try:
         p = osp.join(*args)

@@ -1,6 +1,6 @@
 
 from pytk.util.logutils import logMsg
-from pytk.util.sysutils import argToTuple
+from pytk.util.sysutils import argToTuple, getCaller
 from pytk.util.sysutils import toStr
 # from pytk.util.sysutils import getCaller
 from pytk.util.strutils import upperFirst, lowerFirst
@@ -25,10 +25,10 @@ class MetaObject(object):
 
         for sProperty, _ in self.__class__.propertiesDctItems:
 
-            metaProperty = self.__class__.propertyFactoryClass(sProperty, self)
-            setattr(self, metaProperty.name, metaProperty.defaultValue)
+            metaprpty = self.__class__.propertyFactoryClass(sProperty, self)
+            setattr(self, metaprpty.name, metaprpty.defaultValue)
 
-            self.__metaProperties[sProperty] = metaProperty
+            self.__metaProperties[sProperty] = metaprpty
 
         logMsg(self.__class__.__name__, log='all')
 
@@ -37,18 +37,25 @@ class MetaObject(object):
 
         for sProperty, _ in self.__class__.propertiesDctItems:
 
-            metaProperty = self.__metaProperties[sProperty]
-            if metaProperty.isReadable():
-                setattr(self, metaProperty.name, metaProperty.read())
+            metaprpty = self.__metaProperties[sProperty]
+            if metaprpty.isReadable():
+                setattr(self, metaprpty.name, metaprpty.read())
 
 
     def metaProperty(self, sProperty):
         return self.__metaProperties.get(sProperty)
 
-    def iterMetaPrpties(self, sPropertyList):
+    def iterMetaPrpties(self, propertyNames=None, nones=True):
 
-        for sProperty in sPropertyList:
-            yield self.metaProperty(sProperty)
+        sPropertyIter = self.__class__._iterPropertyArg(propertyNames)
+
+        for sProperty in sPropertyIter:
+            metaprpty = self.metaProperty(sProperty)
+
+            if (not metaprpty) and (not nones):
+                continue
+
+            yield metaprpty
 
     def hasPrpty(self, sProperty):
         return sProperty in self.__metaProperties
@@ -64,26 +71,54 @@ class MetaObject(object):
     def setPrpty(self, sProperty, value, write=True):
         logMsg(self.__class__.__name__, log='all')
 
-        metaProperty = self.__metaProperties[sProperty]
+        metaprpty = self.__metaProperties[sProperty]
 
-        if metaProperty.isValidValue(value):
+        if metaprpty.isValidValue(value):
 
             if write:
-                if metaProperty.isWritable():
-                    if not metaProperty.write(value):
+                if metaprpty.isWritable():
+                    bStatus = metaprpty.write(value)
+                    if not bStatus:
                         return False
                 else:
-                    logMsg("{} is NOT writable !".format(metaProperty), warning=True)
+                    logMsg(u"<{}> Writing to non-writable property: {}.{} ."
+                           .format(getCaller(), self, metaprpty.name), warning=True)
 
-            setattr(self, metaProperty.name, value)
+            setattr(self, metaprpty.name, value)
 
             return True
 
         else:
-            logMsg(" {0}.{1} : Invalid value : '{2}'".format(self, sProperty, value) , warning=True)
+            logMsg(" {0}.{1} : Invalid value : '{2}'"
+                   .format(self, sProperty, value) , warning=True)
             return False
 
-    def getPrptyCfg(self, sProperty, key, default="NoEntry"):
+    def iterPropertyNames(self, **params):
+
+        cls = self.__class__
+        sPropertyIter = (s for s, _ in cls.propertiesDctItems)
+
+        bFilter = True if params else False
+        if not bFilter:
+            return sPropertyIter
+
+        return self.filterPropertyNames(sPropertyIter, **params)
+
+    def filterPropertyNames(self, propertyNames, **params):
+
+        sPropertyIter = self.__class__._iterPropertyArg(propertyNames)
+
+        for sPrpty in sPropertyIter:
+
+            ok = True
+            for k, value in params.iteritems():
+                if self.getPrptyParam(sPrpty, k, "") != value:
+                    ok = False
+                    break
+            if ok:
+                yield sPrpty
+
+    def getPrptyParam(self, sProperty, key, default="NoEntry"):
 
         cls = self.__class__
 
@@ -97,53 +132,57 @@ class MetaObject(object):
     def createPrptyEditor(self, sProperty, parentWidget):
 
         assert sProperty in self.__metaProperties
-        metaProperty = self.__metaProperties[sProperty]
+        metaprpty = self.__metaProperties[sProperty]
 
-        return metaProperty.createEditorWidget(parentWidget)
+        return metaprpty.createEditorWidget(parentWidget)
 
     def getPrptyValueFromWidget(self, sProperty, wdg):
 
         assert sProperty in self.__metaProperties
-        metaProperty = self.__metaProperties[sProperty]
+        metaprpty = self.__metaProperties[sProperty]
 
-        return metaProperty.getValueFromWidget(wdg)
+        return metaprpty.getValueFromWidget(wdg)
 
     def castValueForPrpty(self, sProperty, value):
 
         assert sProperty in self.__metaProperties
-        metaProperty = self.__metaProperties[sProperty]
+        metaprpty = self.__metaProperties[sProperty]
 
         if isinstance(value, (tuple, list)):
-            return list(metaProperty.castValue(v) for v in value)
+            return list(metaprpty.castValue(v) for v in value)
         else:
-            return metaProperty.castValue(value)
+            return metaprpty.castValue(value)
 
-    def __writeAllValues(self, customPropertyNames=None):
+    def writeAllValues(self, propertyNames=None):
+
+        self._writingValues_ = True
+        try:
+            res = self._writeAllValues(propertyNames)
+        finally:
+            self._writingValues_ = False
+
+        return res
+
+    def _writeAllValues(self, propertyNames=None):
         logMsg(self.__class__.__name__, log='all')
 
-        cls = self.__class__
+        sPropertyIter = self.__class__._iterPropertyArg(propertyNames)
 
-        if customPropertyNames is None:
-            sPropertyList = (s for s, _ in cls.propertiesDctItems)
-        else:
-            sPropertyList = customPropertyNames
-
-        for sProperty in sPropertyList:
+        for sProperty in sPropertyIter:
 
             value = getattr(self, sProperty)
 
-            bJustSetPrpty = False
+            bWriteOnly = False
 
             sSetFnc = "set" + upperFirst(sProperty)
             setFnc = getattr(self, sSetFnc, None)
 
-            msg = "Setting {0}.{1} to {2}( {3} ) using {4}".format(
+            msg = u"Setting {0}.{1} to {2}( {3} ) using {4}".format(
                     self, sProperty, type(value).__name__, toStr(value), setFnc if setFnc else "setPrpty")
             logMsg(msg, log="debug")
 
             bSuccess = False
             if setFnc:
-
                 try:
                     bSuccess = setFnc(value, writingAttrs=True)
                 except TypeError:
@@ -151,28 +190,26 @@ class MetaObject(object):
                         bSuccess = setFnc(value)
                     except Exception, msg:
                         logMsg(msg , warning=True)
-                        bJustSetPrpty = True
+                        bWriteOnly = True
             else:
-                bJustSetPrpty = True
+                bWriteOnly = True
 
-            if bJustSetPrpty:
-                metaProperty = self.__metaProperties[sProperty]
-                if metaProperty.isWritable():
-                    bSuccess = metaProperty.write(value)
+            if bWriteOnly:
+                metaprpty = self.__metaProperties[sProperty]
+                if metaprpty.isWritable():
+                    bSuccess = metaprpty.write(value)
                 else:
-                    logMsg("{} is NOT writable !".format(metaProperty), warning=True)
+                    logMsg(u"<{}> Writing to non-writable property: {}.{} ."
+                           .format(getCaller(), self, metaprpty.name), warning=True)
                     bSuccess = True
 
             if not bSuccess:
                 logMsg("Failed " + lowerFirst(msg), warning=True)
 
-    def writeAllValues(self, customPrptyDctItems=None):
+    def getAllValues(self, propertyNames=None):
 
-        self._writingValues_ = True
-        try:
-            return self.__writeAllValues(customPrptyDctItems)
-        finally:
-            self._writingValues_ = False
+        sPropertyIter = self.__class__._iterPropertyArg(propertyNames)
+        return dict((p, self.getPrpty(p)) for p in sPropertyIter)
 
     def copyValuesFrom(self, srcobj):
 
@@ -180,12 +217,13 @@ class MetaObject(object):
 
         for sProperty, _ in self.__class__.propertiesDctItems:
 
-            srcProperty = srcobj.metaProperty(sProperty)
-            if not srcProperty:
+            srcprpty = srcobj.metaProperty(sProperty)
+            if not srcprpty:
                 continue
 
-            if srcProperty.isCopyable():
-                value = srcProperty.getattr_()
+            if srcprpty.isCopyable():
+                value = srcprpty.getattr_()
+                # deferred write of all values
                 self.setPrpty(sProperty, value, write=False)
                 sPropertyList.append(sProperty)
 
@@ -202,22 +240,22 @@ class MetaObject(object):
 
         # get all keyword arguments
         for sProperty, _ in cls.propertiesDctItems:
-            metaProperty = self.__metaProperties[sProperty]
+            metaprpty = self.__metaProperties[sProperty]
 
-            if metaProperty.defaultValue == "undefined" and not bIgnoreMissing:
+            if metaprpty.defaultValue == "undefined" and not bIgnoreMissing:
 
                 try:
-                    value = kwargs.pop(metaProperty.name)
+                    value = kwargs.pop(metaprpty.name)
                 except KeyError:
-                    msg = '{0} needs "{1}" kwarg at least'.format(cls.__name__, metaProperty.name)
+                    msg = u'{0} needs "{1}" kwarg at least'.format(cls.__name__, metaprpty.name)
                     raise TypeError(msg)
 
                 else:
-                    setattr(self, metaProperty.name, value)
+                    setattr(self, metaprpty.name, value)
 
             else:
-                value = kwargs.pop(metaProperty.name, metaProperty.defaultValue)
-                setattr(self, metaProperty.name, value)
+                value = kwargs.pop(metaprpty.name, metaprpty.defaultValue)
+                setattr(self, metaprpty.name, value)
 
         logMsg("Remaining kwargs:", kwargs, log="debug")
 
@@ -236,11 +274,11 @@ class MetaObject(object):
             if sProperty in sIgnorePrptyList:
                 continue
 
-            metaProperty = self.__metaProperties[sProperty]
-            if metaProperty.isInput():
+            metaprpty = self.__metaProperties[sProperty]
+            if metaprpty.isInput():
 
-                inputWdg = metaProperty.createEditorWidget(parentWidget)
-                inputWdgItems.append((metaProperty.name , { "widget" : inputWdg }))
+                inputWdg = metaprpty.createEditorWidget(parentWidget)
+                inputWdgItems.append((metaprpty.name , { "widget" : inputWdg }))
 
         return inputWdgItems
 
@@ -251,6 +289,16 @@ class MetaObject(object):
         assert sProperty in self.__class__.propertiesDct
 
         return None, True
+
+    @classmethod
+    def _iterPropertyArg(cls, propertyNames):
+
+        if propertyNames is None:
+            return (n for n, _ in cls.propertiesDctItems)
+        elif isinstance(propertyNames, set):
+            return (n for n, _ in cls.propertiesDctItems if n in propertyNames)
+        else:
+            return propertyNames
 
 
     def __repr__(self):

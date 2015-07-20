@@ -87,7 +87,7 @@ class BrowserContextMenu(BaseContextMenu):
 #         proj = self.model()._metamodel
 #         for lib in proj.loadedLibraries.itervalues():
 #             print ""
-#             for d in lib.loadedEntriesCache.iteritems():
+#             for d in lib._cachedEntries.iteritems():
 #                 print d
 
     # @forceLog(log="debug")
@@ -97,7 +97,7 @@ class BrowserContextMenu(BaseContextMenu):
 
         sEntryList = "\n    " .join(entry.name for entry in entryList)
 
-        sMsg = 'Are you sure you want to delete these resources: \n\n    ' + sEntryList
+        sMsg = u'Are you sure you want to delete these resources: \n\n    ' + sEntryList
 
         sConfirm = confirmDialog(title='WARNING !',
                                 message=sMsg,

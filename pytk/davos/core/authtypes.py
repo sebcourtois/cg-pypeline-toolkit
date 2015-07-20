@@ -28,6 +28,7 @@ class HellAuth(Authenticator):
         if os.path.isfile(self.cookieFile):
             os.remove(self.cookieFile)
 
+
 class ShotgunAuth(Authenticator):
 
     def __init__(self, project):
@@ -46,3 +47,5 @@ class ShotgunAuth(Authenticator):
 
     def logOut(self, *args, **kwargs):
         self._shotgundb.logoutUser(*args, **kwargs)
+
+
